@@ -1,0 +1,2828 @@
+---
+title: "Microbiome signature of Parkinson disease in healthy and genetically at-risk individuals - Figures"
+subtitle: "In progress"
+author: "Yani Ren, Victoria Meslier"
+date: "2025-02-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, results = "hide", fig.show = "hide", warning = FALSE, message = F) 
+```
+
+This document presents the code used for processing the analysis of 464 fecal samples...
+
+```{r, message=FALSE}
+# Load necessary package
+library(dplyr)
+library(stringr)
+library(momr)
+library(rstatix)
+library(ggpubr)
+library(ggpmisc)
+library(gtools)
+library(Hmisc)
+library(tidyr)
+library(tibble)
+library(cowplot)
+library(grid)
+library(ComplexHeatmap)
+library(gridExtra)
+library(ggplot2)
+source("script_function_ASAPh_paper.R")
+
+``` 
+
+
+
+```{r}
+# color for the 3 groups (group_bis)  
+group_bis_color <- c(HC = "#335A30", GBA_NMC = "#353868", PD ="#94221F")
+color_HC_GBA_NMC = c(group_bis_color[c(1,2)])
+color_HC_PD = c(group_bis_color[c(1,3)])
+color_GBA_NMC_PD = c(group_bis_color[c(2,3)])
+ 
+# color for enriched and depleted species categories 
+PD_enriched_col <- "#eb1c1C"
+PD_depleted_col <- "#196b23"
+
+PD_enriched_hue <- c("#ec8282", PD_enriched_col)
+PD_depleted_hue <- c("#86d590", PD_depleted_col)
+``` 
+
+
+
+```{r}
+# 464 ind - v2 
+load("../data/ASAPh_metadata_fecal_baseline_464ind_17022025_victoria_v2.RData") 
+
+load("../data/ASAPh_microbial_data_fecal_baseline_464ind_17022025_victoria_v2.RData") 
+
+
+
+temp_metadata <- metadata.fecal.baseline %>% 
+    mutate(group = factor(group, levels = c("HC", "GBA_NMC", "GBA_PD", "sPD"))) 
+
+# form PD by grouping GBA_PD and sPD individuals together 
+temp_metadata <- temp_metadata %>% 
+  mutate(group_bis = case_when(group == "HC" ~ "HC", 
+                               group %in% c("GBA_PD", "sPD") ~ "PD", 
+                               group == "GBA_NMC" ~ "GBA_NMC")) 
+temp_metadata <- temp_metadata %>% mutate(group_bis = factor(group_bis, levels = c("HC", "GBA_NMC", "PD")))
+
+
+NMC_ind <- temp_metadata %>% filter(group_bis == "GBA_NMC") %>% pull(MGP_ID_fecal_baseline)
+PD_ind <- temp_metadata %>% filter(group_bis == "PD") %>% pull(MGP_ID_fecal_baseline)
+HC_ind <- temp_metadata %>% filter(group_bis == "HC") %>% pull(MGP_ID_fecal_baseline)
+
+
+dim(msp_fecal_baseline_464ind) # 2054 MSP in reality, because manually added msp_1786 with abundance = 0 for each individual in order to avoid warning 
+# one MSP was removed compared to 469ind MSP matrix : msp_1130 (unclassified)
+
+# compute prevalence of MSP - 464ind
+prevalence <- (rowSums(msp_fecal_baseline_464ind>0)/ncol(msp_fecal_baseline_464ind)) * 100 
+# keep MSP where prevalence > 10% 
+msp_fecal.filt10 <- msp_fecal_baseline_464ind[prevalence > 10,]
+dim(msp_fecal.filt10) 
+``` 
+
+
+
+
+```{r}
+# MSP analysis by group
+
+# loop to perform pairwise comparison using testRelation2 
+my_compa <- combn(x=levels(temp_metadata$group), m = 2, simplify = T)
+for (i in 1:ncol(my_compa)){
+    # select individuals belong to select groups
+    select_data <- temp_metadata %>% 
+      filter(group %in% c(my_compa[1,i], my_compa[2,i])) %>% 
+      mutate(group = factor(group, levels = c(my_compa[1,i], my_compa[2,i])))
+    
+    # extract MSP abundance for selected individuals 
+    select_msp_data <- msp_fecal.filt10[,rownames(select_data)]
+    
+    testR_name = paste("testR_msp", my_compa[1,i], my_compa[2,i], sep = '_')
+    # vec_testR_name <- append(vec_testR_name, testR_name)
+    
+    # perform pairwise comparisons and assign output to a new variable name
+    assign(testR_name, testRelations2(x = as.matrix(select_msp_data), y = select_data$group, type = "nonparametric", paired= F, multiple.adjust = "BH"))
+}
+```
+
+```{r}
+# check values mentionned in paper
+nrow(testR_msp_GBA_PD_sPD[which(testR_msp_GBA_PD_sPD$p<0.05),]) # 44 MSP
+nrow(testR_msp_GBA_PD_sPD[which(testR_msp_GBA_PD_sPD$q<0.6),]) # 0 MSP
+nrow(testR_msp_HC_GBA_PD[which(testR_msp_HC_GBA_PD$q<0.1),]) # 82 MSP
+nrow(testR_msp_HC_sPD[which(testR_msp_HC_sPD$q<0.1),]) # 123 MSP
+```
+
+
+
+```{r, results='hide', message=FALSE}
+# MSP analysis by group_bis
+vec_testR_name <- c()
+
+# loop to perform pairwise comparison using testRelation2 
+my_compa <- combn(x=levels(temp_metadata$group_bis), m = 2, simplify = T)
+for (i in 1:ncol(my_compa)){
+    # select individuals belong to select groups
+    select_data <- temp_metadata %>% 
+      filter(group_bis %in% c(my_compa[1,i], my_compa[2,i])) %>% 
+      mutate(group_bis = factor(group_bis, levels = c(my_compa[1,i], my_compa[2,i])))
+    
+    # extract MSP abundance for selected individuals 
+    select_msp_data <- msp_fecal.filt10[,rownames(select_data)]
+    
+    testR_name = paste("testR_msp", my_compa[1,i], my_compa[2,i], sep = '_')
+    vec_testR_name <- append(vec_testR_name, testR_name)
+    
+    # perform pairwise comparisons and assign output to a new variable name
+    assign(testR_name, testRelations2(x = as.matrix(select_msp_data), y = select_data$group_bis, type = "nonparametric", paired= F, multiple.adjust = "BH"))
+}
+```  
+
+
+```{r, fig.width=11, fig.height=23}
+# BARPLOT MSP CONTRAST - PAIRWISE COMPARISONS
+tab_group <- table(temp_metadata$group_bis)
+
+for (i in 1:ncol(my_compa)){
+    pairwise_group <- paste(my_compa[1,i], my_compa[2,i], sep = "_") 
+
+    df_testR <- get(vec_testR_name[i]) 
+    df_testR$msp <- paste(rownames(df_testR), MSP_set[match(rownames(df_testR), rownames(MSP_set)), "species"], sep = "_")
+    # extract output for significant test based on p<0.05
+    df_testR.sign <- df_testR[which(df_testR$p<0.05),]
+    
+    # show number of significant MSP according to different pval
+    cat(pairwise_group, ", nb msp sign p<0.05 : ", nrow(df_testR.sign),"\n") 
+    cat(pairwise_group, ", nb msp sign q<0.05 : ", nrow(df_testR[which(df_testR$q<0.05),]), "\n")
+    cat(pairwise_group, ", nb msp sign q<0.1 : ", nrow(df_testR[which(df_testR$q<0.1),]), "\n")
+    
+    assign(paste("testR_msp.sign", pairwise_group, sep = "_"), df_testR.sign)  
+} 
+
+# get the significant MSP common in both comparison 
+common21 <- intersect(rownames(testR_msp.sign_HC_PD), rownames(testR_msp.sign_HC_GBA_NMC))
+common_msp21 <- paste(common21, MSP_set[match(common21, rownames(MSP_set)), "species"], sep = "_")
+``` 
+
+
+
+```{r, fig.width=8}
+# merge HC vs GBA_NMC and HC vs PD comparisons results
+HC_vs_PD_NMC <- merge(testR_msp_HC_GBA_NMC, testR_msp_HC_PD, by = "row.names")
+HC_vs_PD_NMC <- HC_vs_PD_NMC %>% tibble::column_to_rownames(var = "Row.names")
+HC_vs_PD_NMC <- HC_vs_PD_NMC %>% select(p.x, HC.GBA_NMC_Cliffdelta, HC.GBA_NMC_status_Cliffdeltacorrected, p.y, HC.PD_Cliffdelta, HC.PD_status_Cliffdeltacorrected)
+
+# add species information
+HC_vs_PD_NMC$species <- MSP_set[match(rownames(HC_vs_PD_NMC), MSP_set$msp_id), "species"] 
+
+# MSP enriched in HC relative to GBA_NMC had negative cliffdelta
+all(HC_vs_PD_NMC[which(HC_vs_PD_NMC$HC.GBA_NMC_status_Cliffdeltacorrected == "HC"), "HC.GBA_NMC_Cliffdelta"]<0)
+# MSP enriched in HC relative to PD had positive cliffdelta
+all(HC_vs_PD_NMC[which(HC_vs_PD_NMC$HC.PD_status_Cliffdeltacorrected == "HC"), "HC.PD_Cliffdelta"]>0)
+
+# multiplicate by minus 1 in order to have same direction of cliffdelta
+HC_vs_PD_NMC$HC.PD_Cliffdelta <- HC_vs_PD_NMC$HC.PD_Cliffdelta*(-1)
+
+# get significant MSP based on HC-PD comparison
+HC_vs_PD_NMC.sign <- HC_vs_PD_NMC %>% filter(p.y<0.05)
+
+# class the 176 MSP into CE, CD, NE and ND subtype specie groups 
+HC_vs_PD_NMC.sign <- HC_vs_PD_NMC.sign %>% 
+    mutate(type = case_when(HC.GBA_NMC_status_Cliffdeltacorrected == "GBA_NMC" & HC.PD_status_Cliffdeltacorrected =="PD" ~ "CE",
+                            HC.GBA_NMC_status_Cliffdeltacorrected == "HC" & HC.PD_status_Cliffdeltacorrected == "HC" ~ "CD",
+                            HC.GBA_NMC_status_Cliffdeltacorrected == "HC" & HC.PD_status_Cliffdeltacorrected == "PD" ~ "NE",
+                            HC.GBA_NMC_status_Cliffdeltacorrected == "GBA_NMC" & HC.PD_status_Cliffdeltacorrected == "HC" ~ "ND")) 
+
+# extract of MSP name for each subtype species
+CE <- HC_vs_PD_NMC.sign %>% filter(type == "CE") %>% rownames()
+CD <- HC_vs_PD_NMC.sign %>% filter(type == "CD") %>% rownames()
+NE <- HC_vs_PD_NMC.sign %>% filter(type == "NE") %>% rownames() 
+ND <- HC_vs_PD_NMC.sign %>% filter(type == "ND") %>% rownames() 
+
+# MSP cliffdelta that belongs to CD subgroup are negative
+all(HC_vs_PD_NMC.sign %>% filter(type == "CD") %>% select(HC.GBA_NMC_Cliffdelta)<0)
+all(HC_vs_PD_NMC.sign %>% filter(type == "CD") %>% select(HC.PD_Cliffdelta)<0)
+
+all(HC_vs_PD_NMC.sign %>% filter(type == "ND") %>% select(HC.GBA_NMC_Cliffdelta)>0)
+all(HC_vs_PD_NMC.sign %>% filter(type == "ND") %>% select(HC.PD_Cliffdelta)<0)
+
+
+# check number in subtype MSP 
+length(CE) # 81
+length(CD) # 61
+length(NE) # 18
+length(ND) # 16
+```
+
+
+# Figure 1
+```{r, fig.width=8, fig.show='hide', results='hide'}
+# BARPLOT COHERENT
+# there is already enriched group column (based on cliffdelta), we create a depleted group column
+HC_vs_PD_NMC.sign <- HC_vs_PD_NMC.sign %>% 
+  mutate(HC.GBA_NMC_status_Cliff_depleted = ifelse(HC.GBA_NMC_status_Cliffdeltacorrected == "HC", "GBA_NMC", "HC")) %>% 
+  mutate(HC.PD_status_Cliff_depleted = ifelse(HC.PD_status_Cliffdeltacorrected == "HC", "PD", "HC")) 
+
+# build table of pvalue 
+df_cliff_CE <-  get_cliff_delta(HC_vs_PD_NMC.sign, cat = "CE") 
+df_cliff_CD <- get_cliff_delta(HC_vs_PD_NMC.sign, cat = "CD")
+
+# build table of mean cliffdelta of enriched/depleted MSP that are coherently altered in group GBA_NMC and PD
+tab_mean_cliff_coh <- df_cliff_CE %>% group_by(cliff_status) %>% summarise_at(vars(cliff), list(mean)) %>% 
+  rbind(df_cliff_CD %>% group_by(cliff_status) %>% summarise_at(vars(cliff), list(mean)))
+tab_mean_cliff_coh$type <- c(rep("CE", 2), rep("CD", 2))  
+
+# Student test of cliffdelta of coherent MSP between PD and GBA_NMC
+coherent_cliff_ttest <- compute_cliff_ttest(df_cliff_CE) %>% 
+  rbind(compute_cliff_ttest(df_cliff_CD))
+coherent_cliff_ttest$y <- c("CE", "CD")
+
+
+# Barplot
+bp_cliff142 <- show_barplot(tab_mean_cliff_coh, x = "type", y = "cliff", fill = "cliff_status", my_color = c(group_bis_color[2], group_bis_color[3]), ylab = "Mean CD", title = "", show_legend = "none", limits = c(0, 0.20), pas = 0.05) + scale_x_discrete(labels=c("CE" = "Enriched coherent species", "CD" = "Depleted coherent species")) + geom_text(data = coherent_cliff_ttest, aes(x=y, y=0.18, label=paste("Student.p:", p)), size = 7)  
+```
+
+
+
+```{r, fig.width=8, fig.show='hide', results='hide'}
+# REGRESSION CLIFFDELTA COHERENT
+HC_vs_PD_NMC_coh142 <- HC_vs_PD_NMC[which(rownames(HC_vs_PD_NMC) %in% c(CE, CD)),]
+
+# identify the 20 significant and coherently MSP altered in both comparisons 
+HC_vs_PD_NMC_coh142 <- HC_vs_PD_NMC_coh142 %>% 
+  mutate(common_msp_sign = ifelse(p.x<0.05 & p.y<0.05, "yes", "no")) 
+
+# extract the 20 significant and coherently altered MSP in both comparisons and 
+# compute the lm equation of MSP cliffdeltas between both comparisons 
+HC_vs_PD_NMC_coh20.sign <- HC_vs_PD_NMC_coh142 %>% filter(common_msp_sign == "yes")
+lm_eq_coh20.sign <- show_lm_eq(HC_vs_PD_NMC_coh20.sign, x = "HC.GBA_NMC_Cliffdelta", y = "HC.PD_Cliffdelta") 
+
+# regression of cliffdelta HC vs NMC and PD, point in red for significant MSP common for both comparisons
+reg_cliff142 <- reg_plot(HC_vs_PD_NMC_coh142, x = "HC.GBA_NMC_Cliffdelta", y = "HC.PD_Cliffdelta", xlab = "CD - HC vs GBA_NMC", ylab = "CD - HC vs PD", color_var = "common_msp_sign", formula.pos = 0.98) + expand_limits(y = c(-0.3, 0.5)) +
+  geom_text(x = -0.075, y = 0.41, label = lm_eq_coh20.sign, parse = T, size = 7,  color = "red", fontface = "plain") 
+reg_cliff142
+```
+
+```{r, results='hide'}
+# REGRESSION CLIFFDELTA NON COHERENT 
+HC_vs_PD_NMC_noncoh <- HC_vs_PD_NMC[which(rownames(HC_vs_PD_NMC) %in% c(NE, ND)),]
+HC_vs_PD_NMC[which(rownames(HC_vs_PD_NMC) %in% NE),]
+# MSP enriched in HC relative to GBA_NMC had negative cliffdelta
+all(HC_vs_PD_NMC_noncoh[which(HC_vs_PD_NMC_noncoh$HC.GBA_NMC_status_Cliffdeltacorrected=="HC"), "HC.GBA_NMC_Cliffdelta"]<0) 
+# MSP enriched in HC relative to PD had negative cliffdelta
+all(HC_vs_PD_NMC_noncoh[which(HC_vs_PD_NMC_noncoh$HC.PD_status_Cliffdeltacorrected=="HC"), "HC.PD_Cliffdelta"]<0)
+
+# get the significant MSP
+HC_vs_PD_NMC_noncoh.sign <- HC_vs_PD_NMC_noncoh %>% filter(p.x<0.05 & p.y<0.05) # 0 common significant MSP 
+dim(HC_vs_PD_NMC_noncoh.sign) # 1
+```
+
+
+```{r, fig.show='hide'}
+# REGRESSION CLIFFDELTA PD vs HC/GBA_NMC
+# cliffdelta HC vs PD against cliffdelta NMC vs PD 
+PD_vs_HC_NMC <- merge(testR_msp_HC_PD, testR_msp_GBA_NMC_PD, by= "row.names") 
+
+PD_vs_HC_NMC <- PD_vs_HC_NMC %>% select(Row.names, p.x, HC.PD_Cliffdelta, HC.PD_status_Cliffdeltacorrected, p.y, GBA_NMC.PD_Cliffdelta, GBA_NMC.PD_status_Cliffdeltacorrected)
+
+PD_vs_HC_NMC_noncoh34 <- PD_vs_HC_NMC %>% filter(Row.names %in% rownames(HC_vs_PD_NMC_noncoh))
+PD_vs_HC_NMC_noncoh34
+
+# regression cliffdelta PD/HC against PD/HC
+reg_PD_vs_HC_NMC_cliff34 <- reg_plot(PD_vs_HC_NMC_noncoh34, x = "HC.PD_Cliffdelta", y = "GBA_NMC.PD_Cliffdelta", color = "black", xlab = "CD - HC vs PD", ylab = "CD - GBA_NMC vs PD", formula.pos = 0.98, point_shape = 17)
+```
+
+
+
+```{r, results='hide'}
+# PROPORTION - COHERENT ALTERED IN PD (140 SPECIES)
+vec_group <- c("HC", "GBA_NMC", "PD") 
+
+# compute proportion of MSP coherently enriched or depleted in samples
+grp_CE_prop <- compute_prop(vec_group, temp_metadata, msp_fecal.filt10, CE)
+grp_CD_prop <- compute_prop(vec_group, temp_metadata, msp_fecal.filt10, CD)
+
+# compute mean proportion of MSP coherently enriched or depleted for each group of samples 
+tab_propC_melt <- show_mean_tab(grp_CE_prop, grp_CD_prop, vec_cat = c("PD_enriched", "PD_depleted"))
+
+# barplot 
+bp_prop_coh <- show_barplot(tab_propC_melt, x = "variable", y = "value", fill = "cat", my_color = c("PD_enriched" = PD_enriched_col, "PD_depleted" = PD_depleted_col), ylab = "MSP mean proportion (%)", title = "Proportion of coherently altered species", limits = c(0, 18), pas = 1, show_legend = "none")
+
+# tab of pvalues 
+prop_coh_pval <- get_tab_pval_ttest(grp_CE_prop,  grp_CD_prop) 
+fig_prop_coh_pval <- show_tab(prop_coh_pval)
+prop_coh_pval
+```
+
+
+```{r, results='hide'}
+# PROPORTION - NONCOHERENT ALTERED IN PD
+vec_group <- c("HC", "GBA_NMC", "PD") 
+
+# compute the proportion for each subtype in each group
+grp_NE_prop <- compute_prop(vec_group, temp_metadata, msp_fecal.filt10, NE)
+grp_ND_prop <- compute_prop(vec_group, temp_metadata, msp_fecal.filt10, ND)
+
+# compute mean proportion for noncoherent PD enriched or depleted and create tab of mean proportion
+tab_propN_melt <- show_mean_tab(grp_NE_prop, grp_ND_prop, vec_cat = c("PD_enriched", "PD_depleted"))
+
+# barplot 
+bp_prop_noncoh <- show_barplot(tab_propN_melt, x = "variable", y = "value", fill = "cat", c("PD_enriched" = PD_enriched_col, "PD_depleted" = PD_depleted_col), ylab = "MSP mean proportion (%)", title = "Proportion of non-coherently altered species", limits = c(0, 6), pas = 1, show_legend = "none")
+
+# tab of pvalues
+prop_noncoh_pval <- get_tab_pval_ttest(grp_NE_prop, grp_ND_prop) 
+prop_noncoh_pval
+fig_prop_noncoh_pval <- show_tab(prop_noncoh_pval)
+```
+ 
+
+```{r, results='hide'}
+# ABUNDANCE - COHERENT ALTERED IN PD
+vec_group <- c("HC", "GBA_NMC", "PD") 
+
+grp_CE_abund <- compute_abund(vec_group, temp_metadata, msp_fecal.filt10, CE)
+grp_CD_abund <- compute_abund(vec_group, temp_metadata, msp_fecal.filt10, CD)
+
+# compute mean abundance for coherent PD enriched or depleted MSP in group and create tab of mean abundance
+tab_abundC_melt <- show_mean_tab(grp_CE_abund, grp_CD_abund, vec_cat = c("PD_enriched", "PD_depleted"))
+
+# barplot 
+bp_abund_coh <- show_barplot(tab_abundC_melt, x = "variable", y = "value", fill = "cat", my_color = c("PD_enriched" = PD_enriched_col, "PD_depleted" = PD_depleted_col), ylab = "MSP mean abundance (%)", title = "Abundance of coherently altered species", limits = c(0, 15), show_legend = "none") 
+
+# tab of pvalues 
+abund_coh_pval <- get_tab_pval_ttest(grp_CE_abund,  grp_CD_abund) 
+abund_coh_pval
+fig_abund_coh_pval <- show_tab(abund_coh_pval)
+```
+ 
+
+```{r, warning = T, results='hide'}
+# ABUNDANCE - NONCOHERENT ALTERED IN PD
+# The data used are the abundance of MSP which are non-coherently altered in GBA_NMC and PD relative to HC. 
+vec_group <- c("HC", "GBA_NMC", "PD") 
+
+grp_NE_abund <- compute_abund(vec_group, temp_metadata, msp_fecal.filt10, NE)
+grp_ND_abund <- compute_abund(vec_group, temp_metadata, msp_fecal.filt10, ND)
+
+# compute mean abundance for noncoherent PD enriched or depleted MSP in group and create tab of mean abundance
+tab_abundN_melt <- show_mean_tab(grp_NE_abund, grp_ND_abund, vec_cat = c("PD_enriched", "PD_depleted"))
+
+# barplot 
+bp_abund_noncoh <- show_barplot(tab_abundN_melt, x = "variable", y = "value", fill = "cat", my_color = c("PD_enriched" = PD_enriched_col, "PD_depleted" = PD_depleted_col), ylab = "MSP mean abundance (%)", title = "Abundance of non-coherently altered species", limits = c(0, 9), show_legend = "none") 
+
+# tab of pvalues
+abund_noncoh_pval <- get_tab_pval_ttest(grp_NE_abund,  grp_ND_abund) 
+abund_noncoh_pval
+fig_abund_noncoh_pval <- show_tab(abund_noncoh_pval)
+```
+
+
+```{r, fig.height=14, fig.width=6}
+fig2_left <- ggarrange(reg_cliff142, bp_cliff142, reg_PD_vs_HC_NMC_cliff34, ncol = 1, labels = c("A", "B", "C"), font.label=list(size=25))
+``` 
+
+```{r, fig.height=12, fig.width=16}
+# versionf - with test 
+bp_pval_prop_coh <- ggarrange(bp_prop_coh, fig_prop_coh_pval, nrow = 2, heights = c(2, 0.9)) 
+bp_pval_abund_coh <- ggarrange(bp_abund_coh, fig_abund_coh_pval, nrow = 2, heights = c(2, 0.9))
+bp_pval_prop_noncoh <- ggarrange(bp_prop_noncoh, fig_prop_noncoh_pval, nrow = 2, heights = c(2, 0.9)) 
+bp_pval_abund_noncoh <- ggarrange(bp_abund_noncoh, fig_abund_noncoh_pval, nrow = 2, heights = c(2, 0.9))
+
+# merged fig - proportion abundance 
+fig2_right <- ggarrange(bp_pval_prop_coh, 
+                        bp_pval_abund_coh, 
+                        bp_pval_prop_noncoh, 
+                        bp_pval_abund_noncoh, nrow = 2, ncol = 2, labels = c("D", "E", "F", "G"), font.label = list(size = 25))
+``` 
+
+```{r, fig.height=15, fig.width=22, fig.show='asis'}
+final_fig2 <- ggarrange(fig2_left, "", fig2_right, ncol = 3, widths = c(1.4, 0.03, 2))
+final_fig2
+```
+
+
+# Figure 2
+```{r}
+# create a dataframe for gather information of PDMS16 MSP
+# df contains 2 columns : type (CE/NE or CD) and cat (PD_depleted/PD_enriched)
+pdms16 <- c("msp_1302","msp_0060","msp_0639","msp_0250","msp_0480","msp_0665","msp_0541","msp_1581","msp_1558","msp_0044","msp_0274","msp_0545","msp_0086","msp_0379","msp_0510","msp_0524")
+pdms16_data <- HC_vs_PD_NMC.sign[pdms16,] %>% select(type)
+pdms16_data <- pdms16_data %>% mutate(cat = ifelse(rownames(pdms16_data) %in% c(CE, NE), "PD_enriched", "PD_depleted")) 
+```
+
+```{r}
+# extract the interest MSP abundance in HC and PD
+abund_pdms_HC <- msp_fecal.filt10[rownames(pdms16_data), HC_ind]
+abund_pdms_PD <- msp_fecal.filt10[rownames(pdms16_data), PD_ind]
+
+# divided dataframe of PDMS16 into enriched and depleted
+msp_enriched <- pdms16_data %>% filter(cat == "PD_enriched")
+msp_depleted <- pdms16_data %>% filter(cat == "PD_depleted")
+
+# count the number of enriched and depleted PDMS16 MSP in HC and PD individuals  
+HC_count_enriched <- colSums(abund_pdms_HC[rownames(msp_enriched),]>0)
+HC_count_depleted <- colSums(abund_pdms_HC[rownames(msp_depleted),]>0)
+
+PD_count_enriched <- colSums(abund_pdms_PD[rownames(msp_enriched),]>0)
+PD_count_depleted <- colSums(abund_pdms_PD[rownames(msp_depleted),]>0)
+
+# checking 
+abund_pdms_HC %>% select(ASAPh_268) %>% filter(rownames(abund_pdms_HC) %in% c(CE, NE))
+abund_pdms_HC %>% select(ASAPh_384) %>% filter(rownames(abund_pdms_HC) %in% c(CD, ND))
+
+abund_pdms_PD %>% select(ASAPh_850) %>% filter(rownames(abund_pdms_PD) %in% c(CE, NE))
+abund_pdms_PD %>% select(ASAPh_850) %>% filter(rownames(abund_pdms_PD) %in% c(CD, ND))
+
+all(names(HC_count_enriched) == names(HC_count_depleted))
+all(names(PD_count_enriched) == names(PD_count_depleted))
+
+# get the difference between enriched and depleted PDMS16 species number in HC and PD
+HC_pdms <- HC_count_enriched - HC_count_depleted
+PD_pdms <- PD_count_enriched - PD_count_depleted
+
+```
+
+
+```{r}
+# for checking purpose I add education_n_years 
+var_tab <- c("pd_dur", "ledd_total", "bdi_total", "hads_depression_total", "hads_anxiety_total", "updrs_i_total", "updrs_ii_total", "updrs_iii_total", "updrs_iv_total", "updrs_total", "hoehn_yahr", "scopa_gastrointestinal", "scopa_pupillomotor", "scopa_cardiovascular", "scopa_thermoregulatory", "scopa_urinary", "scopa_sexual", "scopa_total", "rbdsq_total", "sleepiness", "wcs_total", "appendectomy", "appendectomy_pd_yearsdiff", "age", "bmi", "sex", "upsit_total",  "moca_total", "DQS_score", "Fruit", "Vegetables", "education_n_years", "ed_yrs") 
+
+temp_metadata_bis <- temp_metadata[, var_tab]
+
+temp_metadata_bis <- temp_metadata_bis %>% mutate(appendectomy = ifelse(appendectomy == "no", 1, 2)) %>% mutate(sex = ifelse(sex == "Female", 1, 2))
+```
+
+
+
+
+
+```{r}
+# abundance coherent depleted (CD) for PD 
+PD_quartile_CD_abund <- get_quartile_PD(grp_CD_abund$PD, "D") 
+
+# proportion of coherent enriched (CE) for NMC 
+NMC_quartile_CE_prop <- get_quartile_NMC2(grp_CE_prop$GBA_NMC, vec_msp = "CE")
+
+# proportion of coherent enriched (CE) for HC
+HC_quartile_CE_prop <- get_quartile_HC(grp_CE_prop$HC, "E")
+
+# quartile of HC16 is determined by their PDMS score
+HC16_lower <- HC_pdms[which(HC_pdms <=(-5))]
+HC16_higher <- HC_pdms[which(HC_pdms >= 3)]
+
+# checking
+length(NMC_quartile_CE_prop$below)
+length(NMC_quartile_CE_prop$above)
+NMC_quartile_CD_prop <- get_quartile_NMC2(grp_CD_prop$GBA_NMC, vec_msp = "CD")
+
+length(HC16_lower)
+length(HC16_higher)
+```
+
+
+
+```{r}
+# compute mean and standard deviation of variable of each quartile in each group 
+PD_quartile_clinical <- compute_mean_sd(PD_quartile_CD_abund$Q1, PD_quartile_CD_abund$Q4, temp_metadata_bis, "PD")
+
+NMC_quartile_clinical <- compute_mean_sd(NMC_quartile_CE_prop$below, NMC_quartile_CE_prop$above, temp_metadata_bis, "NMC")
+
+HC_quartile_clinical <- compute_mean_sd(HC_quartile_CE_prop$Q1, HC_quartile_CE_prop$Q4, temp_metadata_bis, "HC")
+
+HC16_quartile_clinical <- compute_mean_sd(HC16_lower, HC16_higher, temp_metadata_bis, "HC16")
+
+# checking
+HC16_quartile_clinical$mean$HC16_L[c("education_n_years", "ed_yrs")]
+HC16_quartile_clinical$mean$HC16_M[c("education_n_years", "ed_yrs")]
+```
+
+
+```{r}
+# construct dataframe contains the mean for selected variables in least and more altered group of HC/NMC/PD/HC16
+df_quartile_mean <- data.frame(PD_quartile_clinical$mean, NMC_quartile_clinical$mean, HC_quartile_clinical$mean, HC16_quartile_clinical$mean) %>% t() %>% as.data.frame()
+
+# construct df containing the sd for selected variables
+df_quartile_sd <- data.frame(PD_quartile_clinical$sd, NMC_quartile_clinical$sd, HC_quartile_clinical$sd, HC16_quartile_clinical$sd) %>% t() %>% as.data.frame() 
+colnames(df_quartile_sd) <- paste0(colnames(df_quartile_sd), "_sd")
+
+# bind means and sd columns  
+df_quartile_mean_sd <- df_quartile_mean %>% cbind(df_quartile_sd)
+
+# add group information
+df_quartile_mean_sd$group <- c(rep(c("PD", "NMC", "HC", "HC16"), each = 2))  
+df_quartile_mean_sd$group <- factor(df_quartile_mean_sd$group, levels = c("PD", "NMC", "HC", "HC16"))
+df_quartile_mean_sd$sub <- factor(rownames(df_quartile_mean_sd), levels = c(rownames(df_quartile_mean_sd)))
+df_quartile_mean_sd
+```
+
+
+
+
+
+```{r}
+# create dataframe containing the values of variables in each group and quartile
+PD_quartile_clinical_data <- PD_quartile_clinical$data1 %>% mutate(quartile = "Q1") %>% 
+  rbind(PD_quartile_clinical$data2 %>% mutate(quartile = "Q4")) 
+
+
+NMC_quartile_clinical_data <-  NMC_quartile_clinical$data1 %>% mutate(quartile = "Q1") %>% 
+  rbind(NMC_quartile_clinical$data2 %>% mutate(quartile = "Q4")) 
+
+
+HC_quartile_clinical_data <- HC_quartile_clinical$data1 %>% mutate(quartile = "Q1") %>% 
+  rbind(HC_quartile_clinical$data2 %>% mutate(quartile = "Q4"))
+
+HC16_quartile_clinical_data <- HC16_quartile_clinical$data1 %>% mutate(quartile = "Q1") %>% 
+  rbind(HC16_quartile_clinical$data2 %>% mutate(quartile = "Q4"))
+```
+
+
+
+```{r}
+# compute pval on different clinical variables
+PD_pval <- PD_quartile_clinical_data %>% compute_pval() %>% mutate(group = "PD")
+
+
+NMC_pval <- NMC_quartile_clinical_data %>% select(!c(pd_dur, ledd_total, appendectomy_pd_yearsdiff)) %>% 
+  compute_pval() %>% mutate(group = "NMC")
+
+HC_pval <- HC_quartile_clinical_data %>% select(!c(pd_dur, ledd_total, appendectomy_pd_yearsdiff)) %>%
+  compute_pval() %>% mutate(group = "HC")
+
+
+HC16_pval <- HC16_quartile_clinical_data %>% select(!c(pd_dur, ledd_total, appendectomy_pd_yearsdiff)) %>% 
+  compute_pval() %>% mutate(group = "HC16")
+
+# regroup all pvalue into dataframe
+df_pval <- PD_pval %>% rbind(NMC_pval) %>% rbind(HC_pval) %>% rbind(HC16_pval)
+df_pval
+```
+
+```{r, results='hide'}
+# checking - proportion CD in GBA_NMC
+test_NMC_quartile_clinical <- compute_mean_sd(NMC_quartile_CD_prop$below, NMC_quartile_CD_prop$above, temp_metadata_bis, "NMC")
+test_NMC_quartile_clinical$mean
+
+test_NMC_quartile_clinical_data <- test_NMC_quartile_clinical$data1 %>% mutate(quartile = "Q1") %>%
+  rbind(test_NMC_quartile_clinical$data2 %>% mutate(quartile = "Q4"))
+
+test_NMC_pval <- test_NMC_quartile_clinical_data %>% select(!c(pd_dur, ledd_total, appendectomy_pd_yearsdiff)) %>% compute_pval() %>% mutate(group = "NMC")
+test_NMC_pval
+
+# checking - proportion CE in GBA_NMC
+test_NMC_quartile_clinical <- compute_mean_sd(NMC_quartile_CE_prop$below, NMC_quartile_CE_prop$above, temp_metadata_bis, "NMC")
+test_NMC_quartile_clinical$mean
+
+test_NMC_quartile_clinical_data <- test_NMC_quartile_clinical$data1 %>% mutate(quartile = "Q1") %>%
+  rbind(test_NMC_quartile_clinical$data2 %>% mutate(quartile = "Q4"))
+
+test_NMC_pval <- test_NMC_quartile_clinical_data %>% select(!c(pd_dur, ledd_total, appendectomy_pd_yearsdiff)) %>% compute_pval() %>% mutate(group = "NMC")
+test_NMC_pval
+```
+
+
+
+```{r}
+# select final variable and construct the figure 
+variable_tab_select <- c("pd_dur", "ledd_total", "scopa_total", "wcs_total", "bdi_total", "updrs_i_total", "DQS_score", "appendectomy")
+variable_tab_select_sd <- paste0(variable_tab_select, sep = "_sd")
+
+df_quartile_mean_sd_sub <- df_quartile_mean_sd %>% select(all_of(c(variable_tab_select, variable_tab_select_sd, "group", "sub")))
+```
+
+
+
+```{r}
+# extract the title for selected variables 
+variable_tab_select_description <- variable_tab_select 
+variable_tab_select <- setNames(c("PD_duration_year", "Levodopa_dose_mg", "SCOPA_total", "WCS_total", "BDI_score", "UPDRS_part_I", "DQS_score", "Appendectomy"), variable_tab_select) 
+
+variable_tab_select_description <- setNames(c("Disease duration", "Medications", "Autonomic dysfunction (SCOPA-AUT)", "Constipation (WCSS)", "Depression (BDI)", "Non-motor symptoms (MDS-UPDRS part I)", "Diet quality", "Appendectomy"), variable_tab_select_description)
+```
+
+
+```{r}
+# first construct the barplot of variable in common in all group
+variable_common <- variable_tab_select[!names(variable_tab_select) %in% c("pd_dur", "ledd_total")]
+variable_common_description <- variable_tab_select_description[!names(variable_tab_select_description) %in% c("pd_dur", "ledd_total")]
+```
+
+
+
+```{r, fig.width=10}
+# BARPLOT FOR VARIABLE IN COMMON
+group_temp_fill <- c(HC = "#335A30", NMC = "#353868", PD ="#94221F", HC16 = "#335A30")
+
+# barplot of mean and sd as bars errors for variables that are common in group
+bp_quartile_list <- list()
+for (i in 1:length(variable_common)){
+  var <- names(variable_common)[i]
+  print(var)
+  var_sd <- paste0(var, "_sd")
+  data_p <- df_pval %>% filter(y == var)
+  
+  if (var == "appendectomy"){
+    data_p$y_position <- tapply(df_quartile_mean_sd_sub[, var], df_quartile_mean_sd_sub$group, max) + 0.1 # Au-dessus des barplots
+  } else {
+    data_p$y_position <- tapply(df_quartile_mean_sd_sub[, var], df_quartile_mean_sd_sub$group, max) + 0.8 # Au-dessus des barplots 
+  }
+  data_p$x_position <- c(1.5, 3.5, 5.5, 7.5) # Milieu entre les barres
+  
+  
+ p <- ggplot(df_quartile_mean_sd_sub, aes(x = sub, y = !!sym(var), fill = group)) +
+    geom_bar(stat = "identity", width = 0.8) +  # Barre principale
+    # geom_errorbar(aes(ymin = !!sym(var) - !!sym(var_sd), ymax = !!sym(var) + !!sym(var_sd)), width = 0.1) + # Barres d'erreur
+    geom_errorbar(aes(ymin = !!sym(var), ymax = !!sym(var) + !!sym(var_sd)), width = 0.1) + # Barres d'erreur
+    geom_text(data = data_p, aes(x = x_position, y = y_position, label = p.signif), size = 4) + # ajout des p-valeurs
+    scale_fill_manual(values = group_temp_fill) + 
+    labs(title = variable_common_description[[i]], x = "", y = variable_common[[i]]) + 
+    theme_pubr() +
+    theme(panel.background = element_blank(), 
+          legend.position = "none", 
+          plot.title = element_text(face = "bold", size = 14))
+          # axis.title = element_text(size = 13, color = "black"),
+          # axis.text = element_text(size = 12, color = "black"))
+  bp_quartile_list[[var]] <- p
+ print(p)
+} 
+```
+
+
+```{r}
+# variable available only for PD 
+variable_tab_PD <- variable_tab_select[names(variable_tab_select) %in% c("pd_dur", "ledd_total")]
+variable_tab_PD_title <- variable_tab_select_description[names(variable_tab_select_description) %in% c("pd_dur", "ledd_total")]
+```
+
+```{r}
+# barplot of mean and sd as error bar for PD 
+PD_df_quartile <- df_quartile_mean_sd %>% filter(str_detect(rownames(df_quartile_mean_sd), ".*PD.*"))
+PD_df_quartile <- PD_df_quartile %>% mutate(sub = factor(sub, levels = rownames(PD_df_quartile)))
+# PD_pval[which(PD_pval$p.signif == "ns"), "p.signif"] <- ""
+
+bp_PD_quartile_list <- list()
+# variable_PD <- list("PD_duration_year" = "Disease duration", "Levodopa_dose_mg" = "Medications")
+for (i in 1:length(variable_tab_PD)){
+  var <- names(variable_tab_PD)[i]
+  var_sd <- paste0(var, "_sd")
+  data_p <- df_pval %>% 
+    filter(group == "PD" & y == var)
+
+  data_p$y_position <- max(PD_df_quartile[, var]) + 1 # Au-dessus des barplots
+  data_p$x_position <- c(1.5) # Milieu entre les barres
+
+  
+ p <- ggplot(PD_df_quartile, aes(x = sub, y = !!sym(var), fill = group)) +
+    geom_bar(stat = "identity", width = 0.8) +  # Barre principale
+    geom_errorbar(aes(ymin = !!sym(var), ymax = !!sym(var) + !!sym(var_sd)), width = 0.1) + # Barres d'erreur
+    geom_text(data = data_p, aes(x = x_position, y = y_position, label = p.signif), size = 4) + # ajout des p-valeurs
+    scale_fill_manual(values = group_temp_fill) + 
+    labs(title = variable_tab_PD_title[[i]], x = "", y = variable_tab_PD[[i]]) + 
+    theme_pubr() +
+    theme(panel.background = element_blank(), 
+          legend.position = "none", 
+          plot.title = element_text(face = "bold", size = 14))
+          # axis.title = element_text(size = 13, color = "black"),
+          # axis.text = element_text(size = 12, color = "black"))
+  bp_PD_quartile_list[[var]] <- p
+ print(p)
+}
+```
+
+
+```{r, fig.height=4, fig.width=9}
+fig_tab_top <- ggarrange(bp_PD_quartile_list$pd_dur, 
+                         bp_PD_quartile_list$ledd_total, 
+                         nrow = 1, labels = c("A"), font.label = list(size = 17))
+fig_tab_top
+```
+
+```{r, fig.height=8, fig.width=15}
+fig_tab_mid <- ggarrange(bp_quartile_list$scopa_total, 
+                         bp_quartile_list$wcs_total, 
+                         bp_quartile_list$bdi_total, 
+                         bp_quartile_list$updrs_i_total, 
+                         nrow = 2, ncol = 2, labels = c("B"),  font.label = list(size = 17, color = "black"))
+fig_tab_mid
+```
+
+
+```{r, fig.height=4, fig.width=14}
+fig_tab_bottom <- ggarrange(bp_quartile_list$DQS_score, 
+                            bp_quartile_list$appendectomy, 
+                            nrow = 1, labels = c("C"), font.label = list(size = 17))
+
+fig_tab_bottom
+```
+
+
+
+```{r, fig.height=12, fig.width=14, fig.show='asis'}
+fig_tab <- ggarrange(fig_tab_top, fig_tab_mid, fig_tab_bottom, ncol = 1, heights = c(0.8, 1.2, 0.8))
+fig_tab
+```
+
+
+# Figure 3 
+
+```{r, fig.height=5, fig.width=7, fig.show='asis'}
+NMC_data <- msp_fecal.filt10[, NMC_ind]
+NMC_enriched_data <- msp_fecal.filt10[CE, NMC_ind]
+ 
+sum_abund_NMC_enriched <- apply(NMC_enriched_data, 2, sum)
+sum_abund_NMC <- apply(NMC_data, 2, sum)
+
+abund_rel <- sum_abund_NMC_enriched/sum_abund_NMC*100
+abund_rel_rank <- sort(abund_rel)
+
+df_enriched_NMC <- data.frame(abund_rel_rank)
+df_enriched_NMC$prob_prodromalPD <- temp_metadata[match(rownames(df_enriched_NMC), rownames(temp_metadata)), "prob_prodromalPD"]
+
+
+# final 
+median_CE_NMC <- median(x=seq(1:nrow(df_enriched_NMC))) 
+fig_dot_NMC_rank <- ggplot(df_enriched_NMC, aes(x=seq(1:nrow(df_enriched_NMC)), y = abund_rel_rank)) + 
+  geom_point(color = "#353868", aes(shape=prob_prodromalPD), size=3) + 
+  scale_shape_manual(values = c("no" = 1, "yes" = 16), name = "", labels = c("not prodromal", "prodromal")) +
+  ylab("Abundance of PD enriched species (%)") +
+  xlab("Rank by abundance of PD enriched species") +
+  expand_limits(y = c(0, 30), x = c(1,50)) + 
+  scale_y_continuous(breaks = seq(0, 30, 5)) +
+  geom_segment(aes(x = median_CE_NMC, y = round(df_enriched_NMC[median_CE_NMC, "abund_rel_rank"])+6.5, xend = median_CE_NMC, yend = round(df_enriched_NMC[median_CE_NMC, "abund_rel_rank"])), linewidth = 0.2, arrow = arrow(length = unit(0.2, "cm"))) +
+  annotate(geom ="text", x = median_CE_NMC, y = 15, label = "median", angle=90, size=5) + 
+  theme_classic() + 
+  theme(axis.title = element_text(size = 15), axis.text = element_text(size = 15), legend.text = element_text(size = 14))
+fig_dot_NMC_rank
+
+```
+
+# Figure 4
+
+First of all, we need to create the correlation table between the msp and the clinical variable we identify as being of interest, as well as the functional potential.
+
+## MSP
+
+This function creates a correlation table between each variable (here msp) and the clinical variable for each of the groups. We use a function that loops over each clinical variable in each group and calculates the Spearman correlation with the 176 msp isolated during (with an identified statistical difference) the PD and HC comparisons. Each correlation table for each variable is then merged into a single database containing all the correlations.
+```{r}
+result_cor <- list()
+result_cor <- cor_176_clinic(result_cor, # empty list where all the correlation df would be stored
+                             unique(temp_metadata$group_bis), ## vector of differents groups
+                             msp_fecal.filt10 %>% 
+                                t() %>%
+                                as.data.frame() %>%
+                                select(c(NE, ND, CE, CD)) %>%
+                                merge(temp_metadata["group_bis"], by = "row.names") %>%
+                                column_to_rownames(var = "Row.names") %>%
+                                rename(group = group_bis), ## abundance table with group information
+                             temp_metadata, ## metadatada
+                             var_tab[!var_tab %in% c("Fruit", "Vegetables", "sleepiness",           "appendectomy","appendectomy_pd_yearsdiff","sex","education_n_years","ed_yrs" )], ## vector of variable of intesrest
+                             name_var = "msp") ## name of the variable analysed
+```
+
+Now we want to add the information of the subgroup of each of msp. The output will be a dataframe with the msp and and their subgroup in columns. 
+```{r}
+df_subgroup <- data.frame(msp = character(), subgroup = character(), stringsAsFactors = FALSE)
+
+## store each of the species names in each corresponding subgroup
+msp_list <- list(CE = CE, CD = CD, ND = ND, NE= NE)
+
+for (subgroup in names(msp_list)) {
+  msps <- msp_list[[subgroup]]
+  
+  ### store the msps name for each corresponding subgroup in a dataframe
+  df_subgroup <- rbind(df_subgroup, data.frame(msp = msps, subgroup = subgroup))
+}
+```
+
+Add subgroup information for each msp to the correlation matrix for each group.
+```{r}
+## Looping through each correlation file (separate by group)
+for (name_df in c("correlation_HC", "correlation_GBA_NMC", "correlation_PD")){
+  
+  ### loading correlation dataframe by group
+  df <- result_cor[[name_df]]
+
+  ### adding the information of subgroup for each msp to the correlation file
+  df <- df %>%
+          left_join(df_subgroup, by = "msp") %>%
+          rename(msp_id = msp) %>%
+          left_join(MSP_set, by = "msp_id") %>%
+          mutate(msp_name = paste(msp_id, species, sep="_")) %>%
+          select(msp_id, msp_name, clinical_variable, correlation, pvalue, ref_MSP, subgroup)
+  
+  ### store the new correlation file with subgroup information in the initial list    
+  result_cor[[name_df]] <- df
+  
+}
+```
+
+We will now combine all the correlation tables for each group into a single table.
+```{r}
+final_df <- as.data.frame(matrix(ncol = 8))
+for (df_name in c("correlation_HC", "correlation_GBA_NMC", "correlation_PD")){
+  df <- result_cor[[df_name]]
+  df$group <- gsub("correlation_", "", df_name)
+  if (df_name == "correlation_HC"){
+    colnames(final_df) <- colnames(df)
+  }
+  final_df <- rbind(final_df, df)
+}
+```
+
+```{r}
+final_df <- final_df[-1,]
+```
+
+## Functional modules
+
+The next step is to correlate the clinical variables of interest with each functional module calculated from the taxonomy table. 
+```{r}
+## creation of the empty list where all correlation table for each group would be stored.
+module_result_cor <- list()
+
+## creation of a new column which combining the information of module name and its ID.
+all_modules_definition_GMM_GBM_KEGG_107$id_name <- paste(all_modules_definition_GMM_GBM_KEGG_107$module, all_modules_definition_GMM_GBM_KEGG_107$Module_pathway, sep= "_")
+```
+
+The analysis is carried out by treating each family of modules separately. 
+```{r}
+## Separation of module IDs according to their module family: KEGG, GMM, GBM.
+kegg <- unique(all_modules_definition_GMM_GBM_KEGG_107[all_modules_definition_GMM_GBM_KEGG_107$DataBase == 'KEGG', "module"])
+gmm <- unique(all_modules_definition_GMM_GBM_KEGG_107[all_modules_definition_GMM_GBM_KEGG_107$DataBase == 'GMM', "module"])
+gbm <- unique(all_modules_definition_GMM_GBM_KEGG_107[all_modules_definition_GMM_GBM_KEGG_107$DataBase == 'GBM', "module"])
+```
+
+```{r}
+## This loop iterates through the names we want to assign to each module table.
+for (nm in c("ftmt_kegg", "ftmt_gmm", "ftmt_gbm")){
+  
+  ### get all the ID for the module family we iterate on
+  data_mod <- get(gsub("ftmt_", "", nm))
+  
+  ### for each module family, filter the functional module table to keep only its rows, and name the result after the module family.
+  assign(nm, ftmt.nocore.fecal.baseline[rownames(ftmt.nocore.fecal.baseline) %in% data_mod,])
+}
+```
+
+
+As with the MSP, the functional modules will be divided into subgroups corresponding to their difference in ‘abundance’ in the HC vs PD and HC vs GBA_NMC comparison. The same subgroups will be found, coherent and non-coherent, enriched and depleted. Two other subgroups were created, corresponding to modules enriched and depleted in PD in the comparison with HC, but which did not reach a p value < 0.05.
+
+```{r}
+## Creation of a data frame to store all the subgroup information for each module ID..
+module_subgroup <- as.data.frame(matrix(ncol = 1))
+colnames(module_subgroup) <- "subgroup"
+
+## This loop iterate on all functional module family table
+for (mod_df in c("ftmt_gbm", "ftmt_gmm", "ftmt_kegg")) {
+  
+  data <- get(mod_df)
+  
+  ### Save the output of testRelation2 in a data frame. It include, among other, the pvalue and qvalue for each module ID from a Wilcoxon test comparing the two selected groups. First *HC vs PD*
+  testrel_mod_HC_PD <- testRelations2(x = data %>%
+                                            t() %>%
+                                            merge(temp_metadata["group_bis"], by = "row.names") %>%
+                                            column_to_rownames(var = "Row.names") %>%
+                                            filter(group_bis %in% c("HC", "PD")) %>%
+                                            select(-group_bis) %>%
+                                            t(), # x correspond to the abundance table dataframe
+                                      y = data %>%
+                                            t() %>%
+                                            merge(temp_metadata["group_bis"], by = "row.names") %>%
+                                            column_to_rownames(var = "Row.names") %>%
+                                            filter(group_bis %in% c("HC", "PD")) %>%
+                                            mutate(group_bis = factor(group_bis)) %>%
+                                            pull(group_bis), # y to the vector of the group
+                                            type = "nonparametric", # the test we want to perform
+                                            multiple.adjust = "BH", # the correction type
+                                            paired = FALSE) # information about the type of comparison
+  
+
+  ### Then *HC vs GBA_NMC*
+  testrel_mod_HC_GBA_NMC <- testRelations2(x = data %>%
+                                            t() %>%
+                                            merge(temp_metadata["group_bis"], by = "row.names") %>%
+                                            column_to_rownames(var = "Row.names") %>%
+                                            filter(group_bis %in% c("HC", "GBA_NMC")) %>%
+                                            select(-group_bis) %>%
+                                            t(),
+                                           y = data %>%
+                                            t() %>%
+                                            merge(temp_metadata["group_bis"], by = "row.names") %>%
+                                            column_to_rownames(var = "Row.names") %>%
+                                            filter(group_bis %in% c("HC", "GBA_NMC")) %>%
+                                            mutate(group_bis = factor(group_bis, level = c("GBA_NMC", "HC"))) %>%
+                                            pull(group_bis),
+                                            type = "nonparametric", 
+                                            multiple.adjust = "BH", 
+                                            paired = FALSE)
+  
+  ### creation of the variable name were *coherent enriched* functional module would be store. 
+  CoherentE <- paste("Coh_E_mod", gsub("ftmt_", "", mod_df), sep = "_")
+  
+  assign(CoherentE, 
+         testrel_mod_HC_PD %>%
+         filter(p<0.05) %>% # retaining only functional modules where wilcoxon test pvalue < 0.05.
+           
+         filter(HC.PD_status_Cliffdeltacorrected == "PD") %>% # keeping only those functional modules whose abundance is higher in PD than in HC.
+           
+         filter(rownames(.) %in% rownames(testrel_mod_HC_GBA_NMC[testrel_mod_HC_GBA_NMC$GBA_NMC.HC_status_Cliffdeltacorrected == "GBA_NMC",])) %>% 
+# only keeping the functional module enriched in PD if they are also enriched in GBA_NMC in the comparison HC vs GBA_NMC
+           
+          merge(testrel_mod_HC_GBA_NMC["GBA_NMC.HC_status_Cliffdeltacorrected"], by = "row.names") %>%
+          column_to_rownames(var = "Row.names"))
+  
+  
+  ### creation of the variable name were *coherent enriched X* functional module would be store. 
+  XE <- paste("X_E_mod", gsub("ftmt_", "", mod_df), sep = "_")
+  
+  assign(XE, 
+         testrel_mod_HC_PD %>%
+         filter(p>0.05) %>%
+         filter(HC.PD_status_Cliffdeltacorrected == "PD")) # XE represents all the functional modules enriched in the PD group compare to HC with a pvalue > 0.05 in the Wilcoxon test.
+  
+  
+  ### creation of the variable name were *coherent depleted* functional module would be store.
+  CoherentD <- paste("Coh_D_mod", gsub("ftmt_", "", mod_df), sep = "_")
+  
+  assign(CoherentD, 
+         testrel_mod_HC_PD %>%
+          filter(p<0.05) %>% # retaining only functional modules where wilcoxon test pvalue < 0.05.
+          filter(HC.PD_status_Cliffdeltacorrected == "HC") %>% # keeping only those functional modules whose abundance is higher in HC than in PD.
+           
+          filter(rownames(.) %in% rownames(testrel_mod_HC_GBA_NMC[testrel_mod_HC_GBA_NMC$GBA_NMC.HC_status_Cliffdeltacorrected == "HC",])) %>%
+          merge(testrel_mod_HC_GBA_NMC["GBA_NMC.HC_status_Cliffdeltacorrected"], by = "row.names") %>%
+# only keeping the functional module enriched in HC if they are also enriched in HC in the comparison HC vs GBA_NMC
+  
+          column_to_rownames(var = "Row.names"))
+  
+  
+  ### creation of the variable name were *coherent depleted X* functional module would be store. 
+  XD <- paste("X_D_mod", gsub("ftmt_", "", mod_df), sep = "_")
+  
+  assign(XD, 
+         testrel_mod_HC_PD %>%
+         filter(p>0.05) %>%
+         filter(HC.PD_status_Cliffdeltacorrected == "HC")) # XE represents all the functional modules enriched in the HC group compare to PD with a pvalue > 0.05 in the Wilcoxon test.
+  
+  
+  ### creation of the variable name were *non-coherent enriched* functional module would be store.
+  NoncoherentE <- paste("NCoh_E_mod", gsub("ftmt_", "", mod_df), sep = "_")
+  
+  assign(NoncoherentE, 
+         testrel_mod_HC_PD %>%
+          filter(HC.PD_status_Cliffdeltacorrected == "PD") %>% # only keeping the functional module enriched in PD with its comparison with HC, no matter the pvalue wilcoxon test value.
+           
+          filter(rownames(.) %in% rownames(testrel_mod_HC_GBA_NMC[testrel_mod_HC_GBA_NMC$GBA_NMC.HC_status_Cliffdeltacorrected == "HC",])) %>% # only keepin the functional modules enriched in HC when compared to GBA_NMC. This is considered inconsistent, as we expect the GBA_NMC group to represent an intermediate state between HC and PD. What is enriched in PD should also be enriched in GBA_NMC.
+           
+          merge(testrel_mod_HC_GBA_NMC["GBA_NMC.HC_status_Cliffdeltacorrected"], by = "row.names") %>%
+          column_to_rownames(var = "Row.names"))
+  
+  
+  ### creation of the variable name were *non-coherent depleted* functional module would be store.
+  NoncoherentD <- paste("NCoh_D_mod", gsub("ftmt_", "", mod_df), sep = "_")
+  
+  assign(NoncoherentD, 
+         testrel_mod_HC_PD %>%
+          filter(HC.PD_status_Cliffdeltacorrected == "HC") %>% # only keeping the functional module enriched in HC with its comparison with PD, no matter the pvalue wilcoxon test value.
+           
+          filter(rownames(.) %in% rownames(testrel_mod_HC_GBA_NMC[testrel_mod_HC_GBA_NMC$GBA_NMC.HC_status_Cliffdeltacorrected == "GBA_NMC",])) %>% # only keepin the functional modules enriched in GBA_NMC when compared to HC.
+           
+          merge(testrel_mod_HC_GBA_NMC["GBA_NMC.HC_status_Cliffdeltacorrected"], by = "row.names") %>%
+          column_to_rownames(var = "Row.names"))
+  
+  ### Each subgroup dataframe contains information about which module belongs to which subgroup, stored in the row names. A new column called 'subgroup' is added to the data, assigning a subgroup based on the module ID (from the rownames). For example, if those rownames are found in the rownames of the filtered matrix CoherentE. These functional modules are then labeled as 'CEM' in the 'subgroup' column. 
+ 
+  data$subgroup <-  case_when(
+  rownames(data) %in% rownames(get(CoherentE))  ~ "CEM",
+  rownames(data) %in% rownames(get(XE)) ~ "XEM",
+  rownames(data) %in% rownames(get(CoherentD))  ~ "CDM",
+  rownames(data) %in% rownames(get(XD)) ~ "XDM",
+  rownames(data) %in% rownames(get(NoncoherentE))  ~ "NEM",
+  rownames(data) %in% rownames(get(NoncoherentD))  ~ "NDM",
+  TRUE ~ "NA")
+  
+  data <- data["subgroup"]
+  
+  module_subgroup <- rbind(module_subgroup, data)
+  
+  names_testrel_HC_PD <- paste(gsub("ftmt_", "", all_modules_definition_GMM_GBM_KEGG_107), "testrel_HC_PD", sep = "_")
+  names_testrel_HC_GBA_NMC <- paste(gsub("ftmt_", "", all_modules_definition_GMM_GBM_KEGG_107), "testrel_HC_GBA_NMC", sep = "_")
+  
+  assign(names_testrel_HC_PD, testrel_mod_HC_PD)
+  assign(names_testrel_HC_GBA_NMC, testrel_mod_HC_GBA_NMC)
+}
+
+## add the column corresponding the the id of module with their name, and set it as rownames. 
+module_subgroup <- module_subgroup %>%
+                      rownames_to_column(var = "module") %>%
+                      .[-1,] %>%
+                      left_join(all_modules_definition_GMM_GBM_KEGG_107[, c("id_name", "module")], by = "module", copy = TRUE) %>%
+                      column_to_rownames(var = "id_name")
+  
+```
+
+Each module family dataframe undergoes a transformation before being input into the cor_176_clinic function, which calculates spearman correlations between each module and each clinical variable within each group.
+```{r}
+for (mod_df in c("ftmt_gbm", "ftmt_gmm", "ftmt_kegg")) {
+  name_df <- paste(mod_df, "df", sep = "_")
+  module_result_cor[[name_df]] <- list()
+}
+## The loop iterate on the abundance table of each module family. 
+for (mod_df in c("ftmt_gbm", "ftmt_gmm", "ftmt_kegg")) {
+  
+  data <- get(mod_df)
+  
+  ### ensuring all modules from the dataframe are in the dataframe module 'dictionary'
+  if (all(rownames(data) %in%  all_modules_definition_GMM_GBM_KEGG_107$module)) {
+    
+    ### attributing for each module ID the equivalence with name and ID
+    replacement <- setNames(all_modules_definition_GMM_GBM_KEGG_107$id_name, 
+                            all_modules_definition_GMM_GBM_KEGG_107$module)
+    
+    ### keeping only the module present in data 
+    new_rownames <- replacement[rownames(data)]
+    
+    ### replacing the rownames of data by equivalent ID + name information
+    rownames(data) <- new_rownames 
+  }
+  
+  mod_data_metadata <- data %>% 
+    t() %>%
+    as.data.frame() %>%
+    merge(temp_metadata["group_bis"], by = "row.names") %>%
+    rename(group = group_bis) %>%
+    column_to_rownames(., var = "Row.names")
+  
+  groups <- unique(mod_data_metadata$group)
+  
+  name_df <- paste(mod_df, "df", sep = "_")
+  
+  ### using the function cor_176_clinic to calculate correlation and store it in a variable
+  list_df <- cor_176_clinic(module_result_cor[[name_df]], 
+                            groups, 
+                            mod_data_metadata, 
+                            temp_metadata, 
+                            var_tab[!var_tab %in% c("Fruit", "Vegetables", "sleepiness",           "appendectomy","appendectomy_pd_yearsdiff","sex","education_n_years","ed_yrs" )], 
+                            "modules")
+  
+  ### iterate through each group correlation dataframe 
+  for (df in seq_along(list_df)) {
+    
+    #### add subgroup information for each module to each of these dataframes
+    list_df[[df]]$subgroup <- module_subgroup$subgroup[match(list_df[[df]]$modules, rownames(module_subgroup))]
+  }
+  
+  ### store the correlation dataframe in the module_result_cor list
+  module_result_cor[[name_df]] <- list_df
+}
+```
+
+Merge all correlation dataframe to have all information in only one dataframe. 
+```{r}
+final_df_mod <- as.data.frame(matrix(ncol = 6))
+for (mod_type in c("ftmt_gmm_df", "ftmt_gbm_df", "ftmt_kegg_df")){
+  for (df_name in c("correlation_HC", "correlation_GBA_NMC", "correlation_PD")){
+    df <- module_result_cor[[mod_type]][[df_name]]
+    df$group <- gsub("correlation_", "", df_name)
+    if (df_name == "correlation_HC"){
+      colnames(final_df_mod) <- colnames(df)
+    }
+    final_df_mod <- rbind(final_df_mod, df)
+  }
+}
+```
+
+```{r}
+final_df_mod <- final_df_mod[-1,]
+```
+
+Now that the dataframes have been generated, the figure can be produced. Firstly, the names of the clinical variables are changed to make them more meaningful. 
+```{r}
+name_correspondance <- read.csv("../data/clinical_name_corr.csv", sep = ";")
+```
+
+```{r}
+## Clinical variable are divided into clinical variable link with health and the ones link with disease. 
+list_clinical_variable_before <- list(
+  c("moca_total", "upsit_total", "DQS_score"),
+  c("updrs_i_total", "updrs_ii_total", "updrs_iii_total", "updrs_iv_total", 
+    "updrs_total", "hoehn_yahr", "scopa_cardiovascular", "scopa_gastrointestinal", 
+    "scopa_pupillomotor", "scopa_sexual", "scopa_thermoregulatory", "scopa_urinary", 
+    "scopa_total", "rbdsq_total", "bdi_total", "hads_anxiety_total", 
+    "hads_depression_total", "wcs_total", "ledd_total", "pd_dur")
+)
+
+### Create a list where the clinical variable new name will be store
+list_clinical_variable <- list()
+
+for (i in seq_along(list_clinical_variable_before)) {  
+  list_clinical_variable[[i]] <- sapply(list_clinical_variable_before[[i]], function(nm) {
+    if (nm %in% name_correspondance$clinical_variable) {
+      name_correspondance[name_correspondance$clinical_variable == nm, "clinical_variable_bis"]
+    } else {
+      nm  
+    }
+  })
+}
+```
+
+```{r}
+## Separate the final_df (msp) by group
+PD <- final_df %>%
+        filter(group == "PD") 
+HC <- final_df %>%
+        filter(group == "HC")
+GBA_NMC <- final_df %>%
+              filter(group == "GBA_NMC")
+```
+
+Use of the prep_data_fig4 function, which generates a dataframe in a format that is easier to use for creating the figure. 
+```{r}
+df_reshaped_sp <- prep_data_fig4(
+  names_dataframe = c("PD", "GBA_NMC", "HC"),
+  numeric_columns = c("correlation", "pvalue"),
+  names_dataframe_filter = c("PD_filter", "GBA_NMC_filter", "HC_filter"),
+  condition_ifelse = expression(ifelse(data$subgroup %in% c("CE", "NCE"), "enriched", "depleted")),
+  clin_var_select = c("age", "bdi_total", "bmi", "DQS_score", "hads_anxiety_total", "hads_depression_total",
+                      "hoehn_yahr", "moca_total", "rbdsq_total", "scopa_cardiovascular", "scopa_gastrointestinal",
+                      "scopa_pupillomotor", "scopa_sexual", "scopa_thermoregulatory", "scopa_total", "scopa_urinary",
+                      "updrs_i_total", "updrs_ii_total", "updrs_iii_total", "updrs_iv_total" ,"updrs_total", "upsit_total", "wcs_total",
+                      "pd_dur", "ledd_total"),
+  creating_df = as.data.frame(matrix(ncol = 4)),
+  colnames_df_final = c("clinical_variable", "type", "correlation_pos", "correlation_neg")
+)
+```
+
+Merge the new name of clinical variable with the old clinical variable name
+```{r}
+for (df in names(df_reshaped_sp)){
+  df_reshaped_sp[[df]] <- df_reshaped_sp[[df]] %>%
+    left_join(name_correspondance, by ="clinical_variable")
+  if (df %in% c("GBA_NMC_filter", "HC_filter")){
+    df_reshaped_sp[[df]] <- df_reshaped_sp[[df]] %>%
+      filter(clinical_variable != "hoehn_yahr")
+  }
+}
+```
+
+Using the graph_figure4_paper function, which uses the dataframe reformatted with the previous function and assigns specific measurements to create a figure adapted to the dataframe data for each group. 
+```{r}
+list_plot_A_C <- graph_figure4_paper(
+                              names_df_tobind = c("PD_filter","HC_filter", "GBA_NMC_filter"), # df to which we will add rows 
+                              format_dataframe = list("PD_filter" = as.data.frame(matrix(ncol = 6, nrow = 1)), 
+                                            "HC_filter" = as.data.frame(matrix(ncol = 6, nrow = 3)), 
+                                            "GBA_NMC_filter" = as.data.frame(matrix(ncol = 6, nrow = 3))), # format of the rows bind with the iniatial dataframe
+                              rows_tobind =  list("PD_filter" = NULL,
+                                                  "HC_filter" = list(c("pd_dur", "enriched", 0, 0, 1, "PD Duration"), c("ledd_total", "enriched", 0, 0, 1, "Levodopa eq. daily dose"), c("updrs iv total", "enriched", 0, 0, 1, "MDS-UPDRS Part IV"), c("hoehn_yahr", "enriched", 0, 0, 1, "Hoehn & Yahr")), 
+                                                  "GBA_NMC_filter" = list(c("pd_dur", "enriched", 0, 0, 1, "PD Duration"), c("ledd_total", "enriched", 0, 0, 1, "Levodopa eq. daily dose"), c("updrs iv total", "enriched", 0, 0, 1, "MDS-UPDRS Part IV"), c("hoehn_yahr", "enriched", 0, 0, 1, "Hoehn & Yahr"))), # the content of the lines that will be linked. The information added is that which does not exist in HC and GBA_NMC is the information relating to the disease. We add the rows with a correlation number set to 0 to have the information on the graph. 
+                              numeric_columns =  c("correlation_pos", "correlation_neg", "chi2"), # indicate which column have to be numeric.
+                              list_clinical_variable = list_clinical_variable, # list created previously with dclincial variable related to health and disease.
+                              final_df = df_reshaped_sp,
+                              clinical_var_col = "clinical_variable_bis",
+                              to_exclude = c("age", "bmi"), # this variable are not of interest in for the figure. 
+                              pos_val = "correlation_pos",
+                              neg_val = "correlation_neg",
+                              asterisk_pos = list("PD_filter" = 3, 
+                                               "HC_filter" = 1, 
+                                               "GBA_NMC_filter" = 1),
+                              asterisk_neg = list("PD_filter" = 9, 
+                                                 "HC_filter" = 4, 
+                                                 "GBA_NMC_filter" = 4), # the value to add to get correct placement of the asterisk in the graph. 
+                              name_type_cor_col = "correlation_type",
+                              name_type_cor_val = "correlation_value",
+                              rename_pos_val = "positive",
+                              rename_neg_val = "negative",
+                              ifelse_condition_y = ifelse_condition_y <- function(data_) {
+                                                    ifelse(data_ == "PD_filter", "PD",
+                                                    ifelse(data_ == "HC_filter", "HC", "GBA_NMC"))
+                                                  }, # to obtain the group concerned and place it on the title of the y-axis. 
+                              colors_fill = c("depletednegative" = "#41ab5d", 
+                                           "depletedpositive" = "#238b45", 
+                                           "enrichednegative" = "#ef3b2c", 
+                                           "enrichedpositive" = "#cb181d"), # color set for each barplot. 
+                              keep_in_legend = c("depletedpositive", "enrichedpositive"),
+                              labels_legend = c("depletedpositive" = "PD depleted", 
+                                             "enrichedpositive" = "PD enriched"), # reformated the legend name. 
+                              which_kind_plot = c("health", "disease"), #  two graphs are produced, one with the clinical variable relating to health, the other with the clinical variable relating to illness. They are combined after all the information is gathered in a single graph, but with a distinct separation. 
+                              number_of = c("Number of", "species"), # what is measure here, is for completed the y axis title. 
+                              label_correlation = c("Positive correlations","Negative correlations"),
+                              limits_by = list("PD_filter" = seq(-90, 60, by = 30), 
+                                            "HC_filter" = seq(-30, 30, by = 10), 
+                                            "GBA_NMC_filter" = seq(-30, 30, by = 10)), # setting the number of thicks in the y axis. 
+                              limits_ = list("PD_filter" = c(-90, 60), 
+                                         "HC_filter" = c(-30, 30), 
+                                         "GBA_NMC_filter" = c(-30, 30)), # setting the range of y axis
+                              y_legend =  list("PD_filter" = c(0.95, 0.13), 
+                                            "HC_filter" = c(0.95, 0.442), 
+                                            "GBA_NMC_filter" = c(0.95, 0.13)), # placement for annotation added in the y axis. 
+                              labs_plot = list("PD_filter" = labs(x = "",  fill = ""),
+                                       "HC_filter" = labs(x = "Clinical variables",  fill = ""), 
+                                       "GBA_NMC_filter" = labs(x = "",  fill = "")), # Name for the plot.
+                              theme_size =   list("PD_filter" = theme(legend.position = "none",
+                                                                        axis.text.x = element_blank(),
+                                                                        legend.title = element_blank(),
+                                                                        axis.title.y = element_text(size = 17, vjust = 1, color = "black"),
+                                                                        axis.text.y = element_text(size = 15, color = "black"),
+                                                                        axis.title.x = element_text(size = 17, vjust = (-3), color = "black"),
+                                                                        plot.margin = unit(c(3,1,0,1), "cm")),
+                                                  "HC_filter" = theme(legend.position = "bottom",
+                                                                       legend.direction = "horizontal",
+                                                                       axis.text.x = element_text(angle =45, hjust = 1, size = 14.5, color = "black"),
+                                                                       legend.title = element_blank(),
+                                                                       axis.title.y = element_text(size = 17, vjust = 1, color = "black"),
+                                                                       axis.text.y = element_text(size = 15, color = "black"),
+                                                                
+                                                                       axis.title.x = element_text(size = 17, vjust = (-3), color = "black"),
+                                                                       plot.margin = unit(c(0,1,0,1), "cm"),
+                                                                       legend.key.size = unit(0.4, "cm"),
+                                                                       legend.box.spacing = unit(0.7, "cm"),
+                                                                       legend.text = element_text(size = 15), color = "black"),
+                                                   "GBA_NMC_filter" = theme(legend.position = "none",
+                                                                             axis.text.x = element_blank(),
+                                                                             legend.title = element_blank(),
+                                                                             axis.title.y = element_text(size = 17, vjust = 1, color = "black"),
+                                                                             axis.text.y = element_text(size = 15, color = "black"),
+                                                                            plot.margin = unit(c(1.5,1,2,1), "cm"))), # theme setting for each group
+                              size_asterisk = list("PD_filter" = 2.8,
+                                                "HC_filter" = 2.8, 
+                                                "GBA_NMC_filter" = 2.8),
+                              angle_asterisk = list("PD_filter" = 0,
+                                                "HC_filter" = 0, 
+                                                "GBA_NMC_filter" = 0),
+                              x_legend = list("PD_filter" = c(0.25, 0.25),
+                                                   "HC_filter" = c(0.25, 0.25), 
+                                                   "GBA_NMC_filter" = c(0.25, 0.25)),
+                              size_legend = list("PD_filter" = 5,
+                                                   "HC_filter" = 5, 
+                                                   "GBA_NMC_filter" = 5),
+                              letter_fig = list("PD_filter" = "A", "HC_filter" = "C", "GBA_NMC_filter" = "B"),
+                              theme_plot_title = list("PD_filter" = theme(plot.title = element_text(hjust = -0.02 ,size = 17, vjust = 1.1, face = "bold")),
+                                                   "HC_filter" = theme(plot.title = element_text(hjust = -0.02 ,size = 17, vjust = 1.4, face = "bold")),
+                                                   "GBA_NMC_filter" = theme(plot.title = element_text(hjust = -0.02 ,size = 17, vjust = 4.5, face = "bold"))),
+                              theme_health_disease_1 = list("PD_filter" = theme(plot.margin = unit(c(0.1, 0, 0, 0), "cm")), 
+                                                         "HC_filter" = theme(plot.margin = unit(c(0.1, 0, 3.54, 0), "cm"), 
+                                                                             legend.position = "none",
+                                                                             axis.title.x = element_blank()), 
+                                                         "GBA_NMC_filter" = theme(plot.margin = unit(c(0.1, 0, 0, 0), "cm"))), # for the health relative clinical variable plot
+                              theme_health_disease_2 = list("PD_filter" = theme(
+                                                                axis.line.y = element_blank(),
+                                                                axis.ticks.y = element_blank(),
+                                                                axis.text.y = element_blank(),
+                                                                axis.title.y = element_blank(),
+                                                                plot.margin = unit(c(0.1, 0.2, 0, 0.2), "cm")
+                                                              ), 
+                                                        "HC_filter" = theme(
+                                                                axis.title.x = element_text(size = 17, vjust = (-4), hjust = 0.3, color = "black"),
+                                                                legend.text = element_text(size = 15),
+                                                                legend.position = "none",
+                                                                axis.line.y = element_blank(),
+                                                                axis.ticks.y = element_blank(),
+                                                                axis.text.y = element_blank(),
+                                                                axis.title.y = element_blank(),
+                                                                plot.margin = unit(c(0.1, 0.2, 0.5, 0.2), "cm"),
+                                                                legend.margin = unit(c(0, 0, 0, 0), "cm")
+                                                              ), 
+                                                        "GBA_NMC_filter" = theme(
+                                                                axis.line.y = element_blank(),
+                                                                axis.ticks.y = element_blank(),
+                                                                axis.text.y = element_blank(),
+                                                                axis.title.y = element_blank(),
+                                                                plot.margin = unit(c(0.1, 0.2, 0, 0.2), "cm"))), # for the disease relative clinical variable plot.
+                              width_two_plots = c(0.27, 1)) # setting the width when associated the two plots.
+```
+
+
+```{r}
+PD_mod <- final_df_mod %>%
+            filter(group == "PD")
+
+GBA_NMC_mod <- final_df_mod %>%
+            filter(group == "GBA_NMC")
+
+HC_mod <- final_df_mod %>%
+            filter(group == "HC")
+
+```
+
+
+Reshaping the dataframe for the modules. 
+```{r}
+df_reshaped_mod <- prep_data_fig4(
+  names_dataframe = c("PD_mod", "GBA_NMC_mod", "HC_mod"),
+  numeric_columns = c("correlation", "pvalue"),
+  names_dataframe_filter = c("PD_mod_filter", "GBA_NMC_mod_filter", "HC_mod_filter"),
+  condition_ifelse = expression(ifelse(data$subgroup %in% c("CEM", "XEM", "NEM"), "enriched", "depleted")),
+  clin_var_select = c("age", "bdi_total", "bmi", "DQS_score", "hads_anxiety_total", "hads_depression_total",
+                      "hoehn_yahr", "moca_total", "rbdsq_total", "scopa_cardiovascular", "scopa_gastrointestinal",
+                      "scopa_pupillomotor", "scopa_sexual", "scopa_thermoregulatory", "scopa_total", "scopa_urinary",
+                      "updrs_i_total", "updrs_ii_total", "updrs_iii_total", "updrs_iv_total", "updrs_total", "upsit_total", "wcs_total",
+                      "pd_dur", "ledd_total"),
+  creating_df = as.data.frame(matrix(ncol = 4)),
+  colnames_df_final = c("clinical_variable", "type", "correlation_pos", "correlation_neg")
+)
+```
+
+Delete the ‘hoehn_yahr’ variable in the GBA_NMC and HC module database. 
+```{r}
+for (name_df in c("GBA_NMC_mod_filter", "HC_mod_filter")){
+  
+  df <- df_reshaped_mod[[name_df]]
+  
+  df_reshaped_mod[[name_df]] <- df %>%
+                                  filter(!clinical_variable == "hoehn_yahr")
+  
+}
+```
+
+
+Replacing the clinical variable name by the new clinical variable name. 
+```{r}
+for (df in names(df_reshaped_mod)){
+  df_reshaped_mod[[df]] <- df_reshaped_mod[[df]] %>%
+    left_join(name_correspondance, by ="clinical_variable")
+}
+```
+
+
+```{r}
+list_plot_D_F <- graph_figure4_paper(names_df_tobind = c("PD_mod_filter", "HC_mod_filter", "GBA_NMC_mod_filter"),
+                           format_dataframe = list("PD_mod_filter" = as.data.frame(matrix(ncol = 6, nrow = 1)), 
+                                            "HC_mod_filter" = as.data.frame(matrix(ncol = 6, nrow = 3)), 
+                                            "GBA_NMC_mod_filter" = as.data.frame(matrix(ncol = 6, nrow = 3))),
+                           rows_tobind = list("PD_mod_filter" = NULL, 
+                                            "HC_mod_filter" = list(c("pd_dur", "enriched", 0, 0, 1, "PD Duration"), c("ledd_total", "enriched", 0, 0, 1, "Levodopa eq. daily dose"), c("updrs_iv_total", "enriched", 0, 0, 1, "MDS-UPDRS Part IV"), c("hoehn_yahr", "enriched", 0, 0, 1, "Hoehn & Yahr")), 
+                                            "GBA_NMC_mod_filter" = list(c("pd_dur", "enriched", 0, 0, 1, "PD Duration"), c("ledd_total", "enriched", 0, 0, 1, "Levodopa eq. daily dose"), c("updrs_iv_total", "enriched", 0, 0, 1, "MDS-UPDRS Part IV"),c("hoehn_yahr", "enriched", 0, 0, 1, "Hoehn & Yahr"))),
+                           numeric_columns =  c("correlation_pos", "correlation_neg", "chi2"),
+                           list_clinical_variable =  list_clinical_variable,
+                           final_df = df_reshaped_mod,
+                           clinical_var_col = "clinical_variable_bis",
+                           to_exclude = c("age", "bmi"),
+                           pos_val = "correlation_pos",
+                           neg_val = "correlation_neg",
+                           asterisk_pos = list("PD_mod_filter" = 7, 
+                                               "HC_mod_filter" = 3, 
+                                               "GBA_NMC_mod_filter" = 3),
+                           asterisk_neg = list("PD_mod_filter" = 25, 
+                                               "HC_mod_filter" = 12, 
+                                               "GBA_NMC_mod_filter" = 7),
+                           name_type_cor_col = "correlation_type",
+                           name_type_cor_val = "correlation_value",
+                           rename_pos_val = "positive",
+                           rename_neg_val = "negative",
+                           ifelse_condition_y = ifelse_condition_y <- function(data_) {
+                                                  ifelse(data_ == "PD_mod_filter", "PD",
+                                                  ifelse(data_ == "HC_mod_filter", "HC", "GBA_NMC"))
+                                                },
+                           colors_fill = c("depletednegative" = "#41ab5d", 
+                                           "depletedpositive" = "#238b45", 
+                                           "enrichednegative" = "#ef3b2c", 
+                                           "enrichedpositive" = "#cb181d"),
+                           keep_in_legend = c("depletedpositive", "enrichedpositive"),
+                           labels_legend = c("depletedpositive" = "PD depleted", 
+                                             "enrichedpositive" = "PD enriched"),
+                           which_kind_plot = c("health", "disease"),
+                           number_of = c("Number of", "modules"),
+                           label_correlation = c("Positive correlations","Negative correlations"),
+                           limits_by = list("PD_mod_filter" = seq(-160, 330, by = 80),  
+                                            "HC_mod_filter" = seq(-90, 80, by = 30), 
+                                            "GBA_NMC_mod_filter" = seq(-60, 80, by = 20)),
+                           limits_ = list("PD_mod_filter" = c(-160, 330), 
+                                         "HC_mod_filter" = c(-90, 80), 
+                                         "GBA_NMC_mod_filter" = c(-60, 80)),
+                           y_legend =  list("PD_mod_filter" = c(0.95, 0.13), 
+                                            "HC_mod_filter" = c(0.95, 0.442), 
+                                            "GBA_NMC_mod_filter" = c(0.95, 0.11)),
+                           labs_plot = list("PD_mod_filter" = labs(x = "",  fill = ""),
+                                       "HC_mod_filter" = labs(x = "Clinical variables",  fill = ""), 
+                                       "GBA_NMC_mod_filter" = labs(x = "",  fill = "")),
+                           theme_size =   list("PD_mod_filter" = theme(legend.position = "none",
+                                                                        axis.text.x = element_blank(),
+                                                                        legend.title = element_blank(),
+                                                                        axis.title.y = element_text(size = 17, vjust = 1, color = "black"),
+                                                                        axis.text.y = element_text(size = 15, color = "black"),
+                                                                        axis.title.x = element_text(size = 17, vjust = (-3), color = "black"),
+                                                                        plot.margin = unit(c(3,1,0,1), "cm")),
+                                                  "HC_mod_filter" = theme(legend.position = "bottom",
+                                                                       legend.direction = "horizontal",
+                                                                       axis.text.x = element_text(angle =45, hjust = 1, size = 14.5, color = "black"),
+                                                                       legend.title = element_blank(),
+                                                                       axis.title.y = element_text(size = 17, vjust = 1, color = "black"),
+                                                                       axis.text.y = element_text(size = 15, color = "black"),
+                                                                       axis.title.x = element_text(size = 17, vjust = (-3), color = "black"),
+                                                                       plot.margin = unit(c(0,1,0,1), "cm"),
+                                                                       legend.key.size = unit(0.4, "cm"),
+                                                                       legend.box.spacing = unit(0.7, "cm"),
+                                                                       legend.text = element_text(size = 15), color = "black"),
+                                                   "GBA_NMC_mod_filter" = theme(legend.position = "none",
+                                                                             axis.text.x = element_blank(),
+                                                                             legend.title = element_blank(),
+                                                                             axis.title.y = element_text(size = 17, vjust = 1, color = "black"),
+                                                                             axis.text.y = element_text(size = 15, color = "black"),
+                                                                            plot.margin = unit(c(1.5,1,2,1), "cm"))),
+                           x_legend = list("PD_mod_filter" = c(0.263, 0.263),
+                                                   "HC_mod_filter" = c(0.25, 0.25), 
+                                                   "GBA_NMC_mod_filter" = c(0.25, 0.25)),
+                           
+                           size_legend = list("PD_mod_filter" = 5,
+                                                   "HC_mod_filter" = 5, 
+                                                   "GBA_NMC_mod_filter" = 5),
+
+                           size_asterisk = list("PD_mod_filter" = 2.8,
+                                                "HC_mod_filter" = 2.8, 
+                                                "GBA_NMC_mod_filter" = 2.8),
+                           
+                           angle_asterisk = list("PD_mod_filter" = 0,
+                                                "HC_mod_filter" = 0, 
+                                                "GBA_NMC_mod_filter" = 0),
+
+                           letter_fig = list("PD_mod_filter" = "D", "HC_mod_filter" = "F", "GBA_NMC_mod_filter" = "E"),
+                           theme_plot_title = list("PD_mod_filter" = theme(plot.title = element_text(hjust = -0.02 ,size = 17, vjust = 1.1, face = "bold")),
+                                                   "HC_mod_filter" = theme(plot.title = element_text(hjust = -0.02 ,size = 17, vjust = 1.5, face = "bold")),
+                                                   "GBA_NMC_mod_filter" = theme(plot.title = element_text(hjust = -0.02 ,size = 17, vjust = 4.5, face = "bold"))),
+                           theme_health_disease_1 = list("PD_mod_filter" = theme(plot.margin = unit(c(0.1, 0, 0, 0), "cm")), 
+                                                         "HC_mod_filter" = theme(plot.margin = unit(c(0.1, 0, 3.54, 0), "cm"), 
+                                                                             legend.position = "none",
+                                                                             axis.title.x = element_blank()), 
+                                                         "GBA_NMC_mod_filter" = theme(plot.margin = unit(c(0.1, 0, 0, 0), "cm"))),
+                           theme_health_disease_2 = list("PD_mod_filter" = theme(
+                                                                axis.line.y = element_blank(),
+                                                                axis.ticks.y = element_blank(),
+                                                                axis.text.y = element_blank(),
+                                                                axis.title.y = element_blank(),
+                                                                plot.margin = unit(c(0.1, 0.2, 0, 0.2), "cm")
+                                                              ), 
+                                                        "HC_mod_filter" = theme(
+                                                                axis.title.x = element_text(size = 17, vjust = (-4), hjust = 0.3, color = "black"),
+                                                                legend.text = element_text(size = 15),
+                                                                legend.position = "none",
+                                                                axis.line.y = element_blank(),
+                                                                axis.ticks.y = element_blank(),
+                                                                axis.text.y = element_blank(),
+                                                                axis.title.y = element_blank(),
+                                                                plot.margin = unit(c(0.1, 0.2, 0.5, 0.2), "cm"),
+                                                                legend.margin = unit(c(0, 0, 0, 0), "cm")
+                                                              ), 
+                                                        "GBA_NMC_mod_filter" = theme(
+                                                                axis.line.y = element_blank(),
+                                                                axis.ticks.y = element_blank(),
+                                                                axis.text.y = element_blank(),
+                                                                axis.title.y = element_blank(),
+                                                                plot.margin = unit(c(0.1, 0.2, 0, 0.2), "cm")
+                                                              )),
+                           width_two_plots = c(0.27, 1)
+                           
+)
+                           
+```
+
+```{r}
+plots_bis_combined <- plot_grid(list_plot_A_C[["plots"]][[1]], 
+                                list_plot_D_F[["plots"]][[1]], 
+                                list_plot_A_C[["plots"]][[2]], 
+                                list_plot_D_F[["plots"]][[2]],
+                                list_plot_A_C[["plots"]][[3]], 
+                                list_plot_D_F[["plots"]][[3]],  
+                                nrow = 3, ncol = 2, rel_heights = c(1, 1, 1.3))
+
+
+```
+
+```{r fig.width = 16, fig.height = 18, fig.show='asis'}
+plot_final <- plot_grid(
+  plots_bis_combined, list_plot_A_C[["legends"]][[1]], 
+  ncol= 1, 
+  rel_heights = c(1, 0.05)
+)
+plot_final
+```
+
+
+
+# Extended Figure 1
+```{r}
+# BARPLOT MSP CONTRAST - HC vs PD
+my_grp_compa <- combn(vec_group, m = 2)
+sign_lvl <- "p<0.05"
+
+# sort the bars according to the cliffdeltas
+testR_msp.sign_HC_PD.ord <- testR_msp.sign_HC_PD %>% arrange(desc(HC.PD_Cliffdelta))
+testR_msp.sign_HC_PD.ord$common_msp_sign <- ifelse(testR_msp.sign_HC_PD.ord$msp %in% common_msp21, "bold", "plain")
+
+bp_msp_HC_PD <- ggbarplot(testR_msp.sign_HC_PD.ord, x = "msp", y = "HC.PD_Cliffdelta", color = "white", fill = "HC.PD_status_Cliffdeltacorrected", rotate = T, xlab = "", ylab = "CD - HC.PD") + 
+  scale_fill_manual(values = color_HC_PD) + 
+  ggtitle(paste("Prevalence > 10% ; ", paste0(my_grp_compa[1,2], " (n=", tab_group[my_grp_compa[1,2]], ") vs ", my_grp_compa[2,2], " (n=", tab_group[my_grp_compa[2,2]], ")", "; ", sign_lvl))) +
+  theme(plot.title = element_text(hjust = 1.2, size = 18), 
+        axis.title = element_text(size = 13), 
+        axis.text.x = element_text(size = 13), 
+        axis.text.y = element_text(size = 13, face = testR_msp.sign_HC_PD.ord$common_msp_sign), 
+        legend.position = "none")
+```
+
+
+
+```{r}
+# BARPLOT MSP CONTRAST - HC vs GBA_NMC
+my_grp_compa <- combn(vec_group, m = 2)
+sign_lvl <- "p<0.05"
+
+# sort the bars according to the cliffdeltas
+testR_msp.sign_HC_GBA_NMC.ord <- testR_msp.sign_HC_GBA_NMC %>% arrange(desc(HC.GBA_NMC_Cliffdelta))
+testR_msp.sign_HC_GBA_NMC.ord$common_msp_sign <- ifelse(testR_msp.sign_HC_GBA_NMC.ord$msp %in% common_msp21, "bold", "plain")
+
+bp_msp_HC_NMC <- ggbarplot(testR_msp.sign_HC_GBA_NMC.ord, x = "msp", y = "HC.GBA_NMC_Cliffdelta", color = "white", fill = "HC.GBA_NMC_status_Cliffdeltacorrected", rotate = T, xlab = "", ylab = "CD - HC.GBA_NMC") + 
+  scale_fill_manual(values = color_HC_GBA_NMC) + 
+  ggtitle(paste("Prevalence > 10% ; ", paste0(my_grp_compa[1,1], " (n=", tab_group[my_grp_compa[1,1]], ") vs ", my_grp_compa[2,1], " (n=", tab_group[my_grp_compa[2,1]], ")", "; ", sign_lvl))) +
+  theme(plot.title = element_text(hjust = 1, size = 18), 
+        axis.title = element_text(size = 13), 
+        axis.text.x = element_text(size = 13), 
+        axis.text.y = element_text(size = 13, face = testR_msp.sign_HC_GBA_NMC.ord$common_msp_sign),
+        legend.position = "none")
+``` 
+
+
+```{r, fig.height=35, fig.width=24, fig.show='asis'}
+# MERGED BARPLOT HC vs PD/GBA_NMC
+fig_contrast <- ggarrange(NULL, bp_msp_HC_PD, NULL, bp_msp_HC_NMC, ncol = 4, widths = c(0.1, 1.2,0.1, 1), labels = c("", "A", "", "B"), font.label = list(size = 25)) 
+fig_contrast
+
+``` 
+
+# Extended Figure 2 - PD 
+
+```{r, fig.width=8}
+# BARPLOT ABUNDANCE QUARTILE - PD  
+
+# sort abundance in ascending way when it's enriched specie type and 
+# in decreasing way when it's depleted specie type  
+# then split into quartile and compute mean of abundance for each quartile 
+PD_quartile_CE_abund <- get_quartile_PD(grp_CE_abund$PD, "E")
+PD_abund_mean_quartile_CE <- compute_mean(PD_quartile_CE_abund)
+
+PD_quartile_NE_abund <- get_quartile_PD(grp_NE_abund$PD, "E")
+PD_abund_mean_quartile_NE <- compute_mean(PD_quartile_NE_abund) 
+
+PD_quartile_CD_abund <- get_quartile_PD(grp_CD_abund$PD, "D")
+PD_abund_mean_quartile_CD <- compute_mean(PD_quartile_CD_abund) 
+
+PD_quartile_ND_abund <- get_quartile_PD(grp_ND_abund$PD, "D")
+PD_abund_mean_quartile_ND <- compute_mean(PD_quartile_ND_abund) 
+
+# check mean values
+round(PD_abund_mean_quartile_CE$value, digits = 1)
+round(PD_abund_mean_quartile_CD$value, digits = 1)
+round(PD_abund_mean_quartile_NE$value, digits = 1)
+
+# create a list of dataframe that contains the mean abundance of each quartile in each subtype specie
+df_list_qPD_abund <- list("Coherent enriched species" = PD_abund_mean_quartile_CE, 
+                          "Coherent depleted species" = PD_abund_mean_quartile_CD, 
+                          "Noncoherent enriched species" = PD_abund_mean_quartile_NE, 
+                          "Noncoherent depleted species" = PD_abund_mean_quartile_ND)
+
+
+# custom final barplot 
+custom_theme <- theme(axis.text = element_text(size = 15), 
+                      axis.title = element_text(size = 15), 
+                      plot.title = element_text(size = 15), 
+                      legend.position = "none")
+
+# create list of abundance barplot for each specie type 
+bp_list_qPD_abund <- list()
+for (i in 1:length(df_list_qPD_abund)){
+  bp_name <- names(df_list_qPD_abund[i])
+  bp_color <- ifelse(str_detect(bp_name, ".*enriched.*"), PD_enriched_col, PD_depleted_col)
+  bp <- ggbarplot(df_list_qPD_abund[[i]], x = "variable", y = "value", fill = bp_color, title = bp_name, ylab = "", xlab = "") + custom_theme
+  bp_list_qPD_abund[[i]] <- bp
+}
+
+# arrange barplot
+fig_qPD_abund <- ggarrange(plotlist = bp_list_qPD_abund)
+fig_qPD_abund <- annotate_figure(fig_qPD_abund, left = text_grob("Abundance (%)", color = "black", rot = 90, size = 15)) 
+fig_qPD_abund
+```
+
+
+
+
+```{r, fig.show='hide'}
+# BARPLOT ABUNDANCE FC QUARTILE Q1 Q4
+
+# compute fold change (fc) of mean abundance between Q1 and Q4 for each subtype specie 
+abund_fc_CE <- foldchange(PD_abund_mean_quartile_CE$value[4], PD_abund_mean_quartile_CE$value[1])
+abund_fc_CD <- foldchange(PD_abund_mean_quartile_CD$value[1], PD_abund_mean_quartile_CD$value[4])
+abund_fc_NE <- foldchange(PD_abund_mean_quartile_NE$value[4], PD_abund_mean_quartile_NE$value[1])
+abund_fc_ND <- foldchange(PD_abund_mean_quartile_ND$value[1], PD_abund_mean_quartile_ND$value[4])
+
+# create dataframe of fc of mean abundance Q1-Q4 for each subtype specie 
+all_abund_fc <- data.frame(c(abund_fc_CE, abund_fc_CD, abund_fc_NE, abund_fc_ND), c(rep("Coherent", 2), rep("Non-coherent", 2)), rep(c("Enriched species", "Depleted species"),2))
+colnames(all_abund_fc) <- c("fc", "cat", "status")
+all_abund_fc <- all_abund_fc %>% mutate(status = factor(status, levels = c("Enriched species", "Depleted species")))
+
+# create barplot of fc of mean abundance Q1-Q4 for each subtype specie 
+fig_fc_quart_abund <- ggbarplot(all_abund_fc, x="cat", y = "fc", fill = "status", position = position_dodge(), palette = c(PD_enriched_col, PD_depleted_col), title = "Abundance Fold Change Q1 - Q4") + 
+  theme_classic() + theme(legend.title = element_blank()) + xlab("") + ylab("") + 
+  scale_x_discrete(labels=c("Coherent" = "Coherent\nspecies", 
+                            "Non-coherent" = "Noncoherent\nspecies")) + 
+  expand_limits(y = c(0,4)) + custom_theme
+
+fig_fc_quart_abund
+```
+
+
+```{r, fig.width=8, fig.height=6, fig.show='hide'}
+# BARPLOT PROPORTION QUARTILE
+
+# sort proportion in ascending way when it's enriched specie type and 
+# in decreasing way when it's depleted specie type  
+# then split into quartile and compute mean of proportion for each quartile  
+PD_quartile_CE_prop <- get_quartile_PD(grp_CE_prop$PD, "E")
+PD_prop_mean_quartile_CE <- compute_mean(PD_quartile_CE_prop) 
+
+PD_quartile_NE_prop <- get_quartile_PD(grp_NE_prop$PD, "E")
+PD_prop_mean_quartile_NE <- compute_mean(PD_quartile_NE_prop) 
+
+PD_quartile_CD_prop <- get_quartile_PD(grp_CD_prop$PD, "D")
+PD_prop_mean_quartile_CD <- compute_mean(PD_quartile_CD_prop) 
+
+PD_quartile_ND_prop <- get_quartile_PD(grp_ND_prop$PD, "D")
+PD_prop_mean_quartile_ND <- compute_mean(PD_quartile_ND_prop) 
+
+
+# check mean values 
+round(PD_prop_mean_quartile_CE$value, digits = 1)
+round(PD_prop_mean_quartile_CD$value, digits = 1) 
+round(PD_prop_mean_quartile_NE$value, digits = 1) 
+round(PD_prop_mean_quartile_ND$value, digits = 1) 
+
+# give a name to table contains mean proportion for each quartile 
+df_list_qPD_prop <- list("Coherent enriched species" = PD_prop_mean_quartile_CE, 
+                          "Coherent depleted species" = PD_prop_mean_quartile_CD, 
+                          "Noncoherent enriched species" = PD_prop_mean_quartile_NE, 
+                          "Noncoherent depleted species" = PD_prop_mean_quartile_ND)
+
+# custom final barplot 
+custom_theme <- theme(axis.text = element_text(size = 15), 
+                      axis.title = element_text(size = 15), 
+                      plot.title = element_text(size = 15), 
+                      legend.position = "none")
+
+# create list of proportion barplot for each specie type 
+bp_list_qPD_prop <- list()
+for (i in 1:length(df_list_qPD_prop)){
+  bp_name <- names(df_list_qPD_prop[i])
+  bp_color <- ifelse(str_detect(bp_name, ".*enriched.*"), PD_enriched_col, PD_depleted_col)
+  bp <- ggbarplot(df_list_qPD_prop[[i]], x = "variable", y = "value", fill = bp_color, title = bp_name, ylab = "", xlab = "") + custom_theme
+  bp_list_qPD_prop[[i]] <- bp
+}
+
+# arrange barplot
+fig_qPD_prop <- ggarrange(plotlist = bp_list_qPD_prop)
+fig_qPD_prop <- annotate_figure(fig_qPD_prop, left = text_grob("Proportion (%)", color = "black", rot = 90, size = 15)) 
+fig_qPD_prop
+```
+
+
+
+
+
+```{r}
+# PROPORTION FC QUARTILE Q1 Q4 - PD
+
+# compute fold change (fc) of mean proportion between Q1 and Q4 for each subtype specie 
+prop_fc_CE <- foldchange(PD_prop_mean_quartile_CE$value[4], PD_prop_mean_quartile_CE$value[1])
+prop_fc_CD <- foldchange(PD_prop_mean_quartile_CD$value[1], PD_prop_mean_quartile_CD$value[4])
+prop_fc_NE <- foldchange(PD_prop_mean_quartile_NE$value[4], PD_prop_mean_quartile_NE$value[1])
+prop_fc_ND <- foldchange(PD_prop_mean_quartile_ND$value[1], PD_prop_mean_quartile_ND$value[4])
+
+# create dataframe of fc of mean proportion Q1-Q4 for each subtype specie 
+all_prop_fc <- data.frame(c(prop_fc_CE, prop_fc_CD, prop_fc_NE, prop_fc_ND), c(rep("Coherent", 2), rep("Non-coherent", 2)), rep(c("Enriched species", "Depleted species"),2))
+colnames(all_prop_fc) <- c("fc", "cat", "status")
+all_prop_fc <- all_prop_fc %>% mutate(status = factor(status, levels = c("Enriched species", "Depleted species")))
+
+# create barplot of fc of mean proportion Q1-Q4 for each subtype specie
+fig_fc_quart_prop <- ggbarplot(all_prop_fc, x="cat", y = "fc", fill = "status", position = position_dodge(), palette = c(PD_enriched_col, PD_depleted_col), title = "Proportion Fold Change Q1 - Q4") + 
+  theme_classic() + custom_theme + xlab("") + ylab("") + 
+  scale_x_discrete(labels=c("Coherent" = "Coherent\nspecies", 
+                          "Non-coherent" = "Noncoherent\nspecies")) + 
+  expand_limits(y = c(0,4))
+
+fig_fc_quart_prop
+```
+
+
+
+
+```{r, fig.height=11, fig.width = 8, fig.show='hide'}
+# BARPLOT PROPORTION & ABUNDANCE QUARTILE - PD
+quartile_left <- ggarrange(fig_qPD_abund, fig_qPD_prop, nrow = 2, labels = c("A","B"), font.label = list(size = 17))
+quartile_left
+```
+
+
+```{r, fig.height=11, fig.width = 8, fig.show='hide'}
+# BARPLOT ABUND/PROP FC QUARTILE Q1 Q4 - PD
+quartile_right <- ggarrange(fig_fc_quart_abund, fig_fc_quart_prop, nrow = 2, labels = c("C","D"), font.label = list(size = 17))
+quartile_right
+``` 
+
+
+```{r, fig.height=9, fig.width = 13, fig.show='asis'}
+# MERGED ABUND/PROP QUARTILE AND ABUND/PROP FC QUARTILE
+fig_quart_top <- ggarrange(quartile_left, quartile_right, ncol = 2, widths = c(2, 0.9))
+fig_quart_top 
+``` 
+
+
+
+# Extended Figure 3
+```{r, results='hide'}
+# PROPORTION - Medication on microbiome alterations in PD
+
+# select 32 PD drug naive individuals
+PD_drug_naive_ind <- temp_metadata %>% 
+  dplyr::filter(group_bis == "PD" & pd_drug_naive == "yes") %>% 
+  pull(MGP_ID_fecal_baseline)
+
+# select 47 PD medicated with lowest disease duration individuals (that matched for the mean duration of disease of drug-naive)
+select_PD_med_ind <- paste0("ASAPh_", c("1138", "557", "1106", "1118", "334", "1140", "230", "223", "682", "629", "359", "656", "241", "964", "801", "1165", "1091", "641", "358", "212", "094", "074", "627", "055", "1095", "831", "597", "009", "035", "598", "260", "566", "054", "1083", "609", "248", "350", "250", "967", "976", "021", "966", "1115", "071", "1089", "617", "667"))
+
+
+vec_sub_group <- c("CE", "NE", "CD", "ND") 
+# In PD drug naive individuals, compute proportion of all MSP and of each subgroup MSP 
+pd_drug_naive_prop <- compute_prop_subtype(vec_sub_group, PD_drug_naive_ind, msp_fecal.filt10)
+
+# In PD medicated individuals, compute proportion of all MSP and of each subgroup MSP 
+pd_med_prop <- compute_prop_subtype(vec_sub_group, select_PD_med_ind, msp_fecal.filt10)
+
+# Student test
+pd_dose_prop_ttest <- compute_ttest(pd_drug_naive_prop, pd_med_prop, grp = "ledd_status", grp_label = c("No_levodopa", "Yes_levodopa"))
+
+# compute mean proportion of MSP for PD drug naive and PD specific individuals
+tab_pd_dose_prop_melt <- show_mean_tab(pd_drug_naive_prop, pd_med_prop, vec_cat = c("No_levodopa", "Yes_levodopa")) 
+
+tab_pd_dose_prop_melt <- tab_pd_dose_prop_melt %>% 
+  mutate(variable_bis = ifelse(variable %in% c("CE", "NE"), "Enriched", "Depleted")) %>% 
+  mutate(cat_color = paste(variable_bis, cat, sep = "_")) %>% 
+  mutate(cat_color = factor(cat_color, levels = c("Enriched_No_levodopa", "Enriched_Yes_levodopa", "Depleted_No_levodopa", "Depleted_Yes_levodopa")))
+
+pd_dose_color <- setNames(c(rep(PD_enriched_hue, 2), rep(PD_depleted_hue, 2)),  tab_pd_dose_prop_melt$cat_color)  
+```
+
+
+```{r, fig.width=9}
+# barplot 
+my_compa <- c("No_levodopa", "Yes_levodopa")
+bp_PD_med_prop <- ggbarplot(tab_pd_dose_prop_melt, x = "variable", y = "value", fill = "cat_color", position = position_dodge()) + 
+  scale_fill_manual(values = pd_dose_color) +
+  ylab("MSP mean proportion (%)") + 
+  theme_classic()+
+  ggtitle("Proportion of the altered microbiome in PD patients") + 
+  theme(legend.title=element_blank(), axis.title.x = element_blank(), axis.text = element_text(size = 14)) +
+  scale_x_discrete(labels=c("CE" = "Enriched coherent\nspecies", 
+                            "NE" = "Enriched\nnoncoherent species",
+                            "CD" = "Depleted coherent\nspecies", 
+                            "ND" = "Depleted\nnoncoherent species")) + 
+  scale_y_continuous(breaks=seq(0, 16, 1)) + 
+  geom_text(data = pd_dose_prop_ttest, aes(x=y, y=15, label=paste0("Student.p:\n", p)), size = 5) 
+``` 
+
+
+```{r}
+# ABUNDANCE - Medication on microbiome alterations in PD
+vec_sub_group <- c("CE", "NE", "CD", "ND")
+
+# In PD drug naive individuals (No levodopa), sum abundance of all MSP and of each subgroup MSP (CE, NE, CD, ND)
+pd_dnaive_abund <- compute_abund_subtype(vec_sub_group, PD_drug_naive_ind, msp_fecal.filt10)
+
+# In PD medicated individuals (Yes levodopa, and dose matched), sum abundance of all MSP and of each subgroup MSP (CE, NE, CD, ND)
+pd_med_abund <- compute_abund_subtype(vec_sub_group, select_PD_med_ind, msp_fecal.filt10)
+
+# Student test
+pd_dose_abund_ttest <- compute_ttest(pd_dnaive_abund, pd_med_abund, grp = "ledd_status", grp_label = c("No_levodopa", "Yes_levodopa"))
+```
+
+
+```{r, fig.width = 10}
+# BARPLOT ABUNDANCE - DRUG NAIVE VS MEDICATED IN PD 
+
+# compute mean abundance for each PD species type according to medication and build table of mean abundance  
+tab_pd_dose_abund_melt <- show_mean_tab(pd_dnaive_abund, pd_med_abund, vec_cat = c("No_levodopa", "Yes_levodopa"))
+
+tab_pd_dose_abund_melt <- tab_pd_dose_abund_melt %>% 
+  mutate(variable_bis = ifelse(variable %in% c("CE", "NE"), "Enriched", "Depleted")) %>% 
+  mutate(cat_color = paste(variable_bis, cat, sep = "_")) %>% 
+  mutate(cat_color = factor(cat_color, levels = c("Enriched_No_levodopa", "Enriched_Yes_levodopa", "Depleted_No_levodopa", "Depleted_Yes_levodopa")))
+
+pd_dose_color <- setNames(c(rep(PD_enriched_hue, 2), rep(PD_depleted_hue, 2)),  tab_pd_dose_abund_melt$cat_color)
+```
+
+
+
+```{r}
+# PROPORTION - DISEASE DURATION in PD
+# For study the duration of disease effect on microbiome : 61 PD individuals with different disease duration (4.2 and 7.2 years on average, N=30 and N=31 respectively) that matched for the mean dose of levodopa (600 mg on average). 
+
+# select 30 short duration PD individuals 
+PD_short_ind <- paste0("ASAPh_", c("359", "212", "566", "1083", "021", "006", "020", "371", "261", "030", "266", "1149", "989", "688", "353", "267", "968", "852", "588", "606", "363", "618", "235", "585", "381", "1101", "1098", "091", "022", "010"))
+
+# select 31 long duration PD individuals
+PD_long_ind <- paste0("ASAPh_", c("335", "988", "649", "043", "352", "038", "036", "643", "987", "040", "067", "817", "098", "031", "355", "828", "033", "005", "234", "049", "603", "342", "254", "991", "251", "690", "819", "237", "624", "354", "376"))
+
+# extract the pd_dur and ledd_total for the 61 individuals  
+select_PD_data <- temp_metadata[c(PD_short_ind, PD_long_ind),] 
+select_PD_data <- select_PD_data %>% 
+  mutate(pd_dur_cat = ifelse(rownames(select_PD_data) %in% PD_short_ind, "shorter", "longer"))
+select_PD_data <- select_PD_data %>% dplyr::select(group_bis, pd_dur, pd_dur_cat, ledd_total)
+``` 
+
+
+
+```{r}
+# In PD shorter duration disease, compute the count and the proportion of all MSP and of each subgroup MSP
+pd_short_prop <- compute_prop_subtype(vec_sub_group, PD_short_ind, msp_fecal.filt10)
+
+# In PD longer duration disease, compute the count and the proportion of all MSP and of each subgroup MSP
+pd_long_prop <- compute_prop_subtype(vec_sub_group, PD_long_ind, msp_fecal.filt10)
+
+# compute mean proportion for each species type according to PD duration and build table of mean proportion
+tab_pd_duration_prop_melt <- show_mean_tab(pd_short_prop, pd_long_prop, vec_cat = c("shorter", "longer"))
+
+# Student test
+pd_duration_prop_ttest <- compute_ttest(pd_short_prop, pd_long_prop, grp = "pd_duration", grp_label = c("shorter", "longer")) 
+```
+
+
+
+```{r, fig.width=9, results='markup', fig.show='hide'}
+# PROPORTION - Disease duration on microbiome alterations in PD
+
+tab_pd_duration_prop_melt <- tab_pd_duration_prop_melt %>% 
+  mutate(variable_bis = ifelse(variable %in% c("CE", "NE"), "Enriched", "Depleted")) %>% 
+  mutate(cat_color = paste(variable_bis, cat, sep = "_")) %>% 
+  mutate(cat_color = factor(cat_color, levels = c("Enriched_shorter", "Enriched_longer", "Depleted_shorter", "Depleted_longer"))) 
+pd_duration_color <- setNames(c(rep(PD_enriched_hue, 2), rep(PD_depleted_hue, 2)), tab_pd_duration_prop_melt$cat_color)
+```
+
+
+```{r}
+# ABUNDANCE - DISEASE DURATION IN PD 
+vec_sub_group <- c("CE", "NE", "CD", "ND")
+
+# In PD shorter duration disease individuals, sum abundance of all MSP and of each subgroup MSP
+pd_short_abund <- compute_abund_subtype(vec_sub_group, PD_short_ind, msp_fecal.filt10)
+
+# In PD longer duration disease individuals, sum abundance of all MSP and of each subgroup MSP
+pd_long_abund <- compute_abund_subtype(vec_sub_group, PD_long_ind, msp_fecal.filt10)
+
+# compute mean abundance for each type according to shorter or longer duration and build table of mean 
+tab_pd_duration_abund_melt <- show_mean_tab(pd_short_abund, pd_long_abund, vec_cat = c("shorter", "longer"))
+
+# Student test
+pd_duration_abund_ttest <- compute_ttest(pd_short_abund, pd_long_abund, grp = "pd_duration", grp_label = c("shorter", "longer"))  
+```
+
+
+    
+```{r, fig.width = 8}
+# ABUNDANCE - DISEASE DURATION IN PD
+tab_pd_duration_abund_melt <- tab_pd_duration_abund_melt %>% 
+  mutate(variable_bis = ifelse(variable %in% c("CE", "NE"), "Enriched", "Depleted")) %>% 
+  mutate(cat_color = paste(variable_bis, cat, sep = "_")) %>% 
+  mutate(cat_color = factor(cat_color, levels = c("Enriched_shorter", "Enriched_longer", "Depleted_shorter", "Depleted_longer")))
+
+pd_duration_color <- setNames(c(rep(PD_enriched_hue, 2), rep(PD_depleted_hue, 2)),  tab_pd_duration_abund_melt$cat_color) 
+``` 
+
+
+```{r, fig.width=10}
+# MIX BARPLOT - DOSE EFFECT IN PD (drug naive vs medicated)
+# enriched represented by abundance and depleted represented by proportion
+select_dose_abund <- tab_pd_dose_abund_melt %>% filter(variable %in% c("CE", "NE"))
+select_dose_prop <- tab_pd_dose_prop_melt %>% filter(variable %in% c("CD","ND"))
+tab_select_dose <- select_dose_abund %>% rbind(select_dose_prop)
+
+# bind the abundance ttest for enriched species with the proportion ttest for depleted species 
+pd_dose_select_test <- pd_dose_abund_ttest %>% filter(y %in% c("CE", "NE")) %>%
+  rbind(pd_dose_prop_ttest %>% filter(y %in% c("CD", "ND")))
+# round pval at 2 decimals
+pd_dose_select_test <- pd_dose_select_test %>% mutate(p = round(p, 3))
+
+# barplot
+bp_dose_mix <- ggbarplot(tab_select_dose, x = "variable", y = "value", fill = "cat_color", position = position_dodge2(), title = "Effect of medication on microbiome alterations in PD", ylab = "") +
+  scale_fill_manual(values = pd_dose_color) +
+  theme_classic()+
+  theme(title = element_text(size = 18),
+        axis.title.x = element_blank(), 
+        axis.text = element_text(size = 15), 
+        legend.title=element_blank(), 
+        legend.text = element_text(size = 14), 
+        legend.position = "bottom", 
+        legend.key.size = unit(1, 'cm'), 
+        legend.key.spacing.x = unit(1, "cm")) +
+  guides(fill = guide_legend(label.position = "bottom")) + 
+  scale_x_discrete(labels=c("CE" = "Enriched coherent\nspecies\n(mean abund.)",
+                            "NE" = "Enriched\nnoncoherent species\n(mean abund.)",
+                            "CD" = "Depleted coherent\nspecies\n(mean prop.)",
+                            "ND" = "Depleted\nnoncoherent species\n(mean prop.)")) +
+  scale_y_continuous(breaks = seq(0, 15, 1)) +
+  expand_limits(y = c(0, 17)) +
+  geom_text(data = pd_dose_select_test, aes (x=y, y=16, label = paste0("Student.p:\n", p)), size = 7)
+
+bp_dose_mix
+```
+
+
+
+```{r, fig.width=8}
+# MIX BARPLOT - DISEASE DURATION IN PD 
+# enriched represented by abundance and depleted represented by proportion
+select_duration_abund <- tab_pd_duration_abund_melt %>% filter(variable %in% c("CE", "NE"))
+select_duration_prop <- tab_pd_duration_prop_melt %>% filter(variable %in% c("CD","ND"))
+tab_select_duration <- select_duration_abund %>% rbind(select_duration_prop)
+
+# bind the abundance ttest for enriched species with the proportion ttest for depleted species 
+pd_duration_select_test <- pd_duration_abund_ttest %>% filter(y %in% c("CE", "NE")) %>%
+  rbind(pd_duration_prop_ttest %>% filter(y %in% c("CD", "ND")))
+pd_duration_select_test <- pd_duration_select_test %>% mutate(p = round(p, 3))
+
+# barplot
+bp_duration_mix <- ggbarplot(tab_select_duration, x = "variable", y = "value", fill = "cat_color", position = position_dodge2(), title = "Effect of disease duration on microbiome alterations in PD", ylab = "") + 
+  scale_fill_manual(values = pd_duration_color) + 
+  theme_classic()+
+  theme(title = element_text(size = 18),
+        axis.title.x = element_blank(),
+        axis.text = element_text(size = 15),
+        legend.title=element_blank(),
+        legend.text = element_text(size = 14),
+        legend.position = "bottom",
+        legend.key.size = unit(1, 'cm'),
+        legend.key.spacing.x = unit(1, "cm")) +
+  guides(fill = guide_legend(label.position = "bottom")) +
+  scale_x_discrete(labels=c("CE" = "Enriched coherent\nspecies\n(mean abund.)",
+                            "NE" = "Enriched\nnoncoherent species\n(mean abund.)",
+                            "CD" = "Depleted coherent\nspecies\n(mean prop.)",
+                            "ND" = "Depleted\nnoncoherent species\n(mean prop.)")) +
+  scale_y_continuous(breaks = seq(0, 15, 1)) +
+  expand_limits(y = c(0, 17)) +
+  geom_text(data = pd_duration_select_test, aes(x=y, y=16, label = paste0("Student.p:\n", p)), size = 7)
+  
+bp_duration_mix
+```
+
+
+
+```{r, fig.height=8, fig.width=21, fig.show='asis'}
+fig_medication_duration <- ggarrange(bp_dose_mix, NULL, bp_duration_mix, ncol = 3, labels = c("A", "", "B"), widths = c(1, 0.06, 1.04), font.label = list(size = 23))
+fig_medication_duration
+```
+ 
+
+# Extended Figure 4
+```{r}
+# order individuals according to enriched or depleted type species and get quartiles
+NMC_med_abund_CE <- get_quartile_NMC2(grp_CE_abund$GBA_NMC, vec_msp = "CE")
+NMC_med_abund_CE_mean <- NMC_med_abund_CE %>% compute_mean()
+
+NMC_med_abund_CD <- get_quartile_NMC2(grp_CD_abund$GBA_NMC, vec_msp = "CD")
+NMC_med_abund_CD_mean <- NMC_med_abund_CD %>% compute_mean()
+
+NMC_med_prop_CE <- get_quartile_NMC2(grp_CE_prop$GBA_NMC, vec_msp = "CE")
+NMC_med_prop_CE_mean <- NMC_med_prop_CE %>% compute_mean()
+
+NMC_med_prop_CD <- get_quartile_NMC2(grp_CD_prop$GBA_NMC, vec_msp = "CD")
+NMC_med_prop_CD_mean <- NMC_med_prop_CD %>% compute_mean()
+
+vec_median_mean <- c("NMC_med_abund_CE_mean", "NMC_med_abund_CD_mean", "NMC_med_prop_CE_mean", "NMC_med_prop_CD_mean")
+
+# check 
+length(NMC_med_prop_CD$below)
+length(NMC_med_prop_CD$above)
+
+length(NMC_med_abund_CD$below)
+length(NMC_med_abund_CD$above)
+
+length(NMC_med_abund_CE$below)
+length(NMC_med_abund_CE$above)
+```
+
+ 
+```{r}
+# Student test 
+ttest_median_abund_CE <- t.test(NMC_med_abund_CE$below, NMC_med_abund_CE$above, alternative = "less", var.equal = T)$p.value %>% signif(.,3)
+ttest_median_abund_CD <- t.test(NMC_med_abund_CD$below, NMC_med_abund_CD$above, alternative = "greater", var.equal = T)$p.value %>% signif(.,3)
+ttest_median_prop_CE <- t.test(NMC_med_prop_CE$below, NMC_med_prop_CE$above, alternative = "less", var.equal = T)$p.value %>% signif(.,3)
+ttest_median_prop_CD <- t.test(NMC_med_prop_CD$below, NMC_med_prop_CD$above, alternative = "greater", var.equal = T)$p.value %>% signif(.,3)
+# summarize 
+vec_median_test <- c(ttest_median_abund_CE, ttest_median_abund_CD, ttest_median_prop_CE, ttest_median_prop_CD)
+
+# Fold change of mean 
+fc_median_abund_CE <- signif(mean(NMC_med_abund_CE$above)/mean(NMC_med_abund_CE$below),3) # +/- 
+fc_median_abund_CD <- signif(mean(NMC_med_abund_CD$below)/mean(NMC_med_abund_CD$above), 3) 
+
+fc_median_prop_CE <-  signif(mean(NMC_med_prop_CE$above)/mean(NMC_med_prop_CE$below),3)
+fc_median_prop_CD <-  signif(mean(NMC_med_prop_CD$below)/mean(NMC_med_prop_CD$above),3)
+
+# summarize
+vec_median_fc <- c(fc_median_abund_CE, fc_median_abund_CD, fc_median_prop_CE, fc_median_prop_CD)
+```
+ 
+ 
+```{r}
+# BARPLOT MEDIAN - GBA_NMC
+name_median_list <- setNames(c("Abundance of coherent PD\nenriched species", 
+                                "Abundance of coherent PD\ndepleted species",
+                                "Proportion of coherent PD\nenriched species",
+                                "Proportion of coherent PD\ndepleted species"), vec_median_mean)
+
+
+bp_median_list <- list()
+for (i in 1:length(vec_median_mean)){
+  data <- get(vec_median_mean[i])
+  bp_title <- name_median_list[[i]]
+  bp_color <- ifelse(str_detect(bp_title, ".*enriched.*"), PD_enriched_col, PD_depleted_col)
+  p <- show_barplot(data, x = "variable", y = "value", fill = bp_color, title = bp_title, show_legend = "right", limits = c(0, round(max(data$value))+2), pas = 2, ylab = "%") + 
+    annotate(geom = "text", label = paste("FC:", vec_median_fc[i]), x = 1.5, y=round(max(data$value))+3, size = 6) + 
+    annotate(geom = "text", label = paste("Student.p:", vec_median_test[i]), x=1.5, y=round(max(data$value))+1.5, size = 6)
+  print(p)
+  bp_median_list[[vec_median_mean[i]]] <- p
+}
+
+bp_median_list
+```
+
+```{r}
+# BARPLOT ABUNDANCE COHERENT MEDIAN
+fig_median_top <- ggarrange(bp_median_list$NMC_med_abund_CE_mean, bp_median_list$NMC_med_abund_CD_mean, ncol = 2, labels = c("A", "B"), font.label = list(size = 17))
+
+# BARPLOT PROPORTION COHERENT MEDIAN
+fig_median_bottom <- ggarrange(bp_median_list$NMC_med_prop_CE_mean, bp_median_list$NMC_med_prop_CD_mean, ncol = 2, labels = c("C", "D"), font.label = list(size = 17))
+
+fig_median_top
+fig_median_bottom
+```
+ 
+```{r, fig.height=10, fig.width=9, fig.show='asis'}
+# FINAL ABUND/PROP COHERENT MEDIAN
+fig_median <- ggarrange(fig_median_top, "", fig_median_bottom, nrow = 3, heights = c(1, 0.1 ,1))
+fig_median
+```
+ 
+
+# Extended Figure 5 - HC
+
+```{r, fig.width=8}
+# BARPLOT ABUNDANCE QUARTILE  
+
+# sort abundance in ascending way when it's enriched specie type and 
+# in decreasing way when it's depleted specie type  
+# then split into quartile and compute mean of abundance for each quartile
+HC_quartile_CE_abund <- get_quartile_HC(grp_CE_abund$HC, "E")
+HC_abund_mean_quartile_CE <- HC_quartile_CE_abund %>% compute_mean()
+
+HC_quartile_NE_abund <- get_quartile_HC(grp_NE_abund$HC, "E")
+HC_abund_mean_quartile_NE <- HC_quartile_NE_abund %>%  compute_mean() 
+
+# when depleted subtype specie, Q1 = more altered, Q4 = less altered
+HC_quartile_CD_abund <- get_quartile_HC(grp_CD_abund$HC, "D")
+HC_abund_mean_quartile_CD <- HC_quartile_CD_abund %>% compute_mean() 
+
+HC_quartile_ND_abund <- get_quartile_HC(grp_ND_abund$HC, "D")
+HC_abund_mean_quartile_ND <- HC_quartile_ND_abund %>% compute_mean() 
+
+# create a list of dataframe that contains the mean abundance of each quartile in each subtype specie
+df_list_qHC_abund <- list("Coherent enriched species" = HC_abund_mean_quartile_CE, 
+                          "Coherent depleted species" = HC_abund_mean_quartile_CD, 
+                          "Noncoherent enriched species" = HC_abund_mean_quartile_NE, 
+                          "Noncoherent depleted species" = HC_abund_mean_quartile_ND)
+
+# custom final barplot
+custom_theme <- theme(axis.text = element_text(size = 15), 
+                      axis.title = element_text(size = 15), 
+                      plot.title = element_text(size = 15), 
+                      legend.position = "none")
+
+# create list of abundance barplot for each specie type 
+bp_list_qHC_abund <- list()
+for (i in 1:length(df_list_qHC_abund)){
+  bp_name <- names(df_list_qHC_abund[i])
+  bp_color <- ifelse(str_detect(bp_name, ".*enriched.*"), PD_enriched_col, PD_depleted_col)
+  bp <- ggbarplot(df_list_qHC_abund[[i]], x = "variable", y = "value", fill = bp_color, title = bp_name, ylab = "", xlab = "") + custom_theme
+  bp_list_qHC_abund[[i]] <- bp
+}
+
+# arrange barplot
+fig_qHC_abund <- ggarrange(plotlist = bp_list_qHC_abund)
+fig_qHC_abund <- annotate_figure(fig_qHC_abund, left = text_grob("Abundance (%)", color = "black", rot = 90, size = 15)) 
+fig_qHC_abund
+```
+
+
+
+```{r, fig.show='hide'}
+# BARPLOT ABUNDANCE FC QUARTILE Q1 Q4 - HC
+
+# compute fold change (fc) of mean abundance between Q1 and Q4 for each subtype specie 
+abund_fc_CE <- foldchange(HC_abund_mean_quartile_CE$value[4], HC_abund_mean_quartile_CE$value[1])
+abund_fc_CD <- foldchange(HC_abund_mean_quartile_CD$value[1], HC_abund_mean_quartile_CD$value[4])
+abund_fc_NE <- foldchange(HC_abund_mean_quartile_NE$value[4], HC_abund_mean_quartile_NE$value[1])
+abund_fc_ND <- foldchange(HC_abund_mean_quartile_ND$value[1], HC_abund_mean_quartile_ND$value[4])
+
+# create dataframe of fc of mean abundance Q1-Q4 for each subtype specie 
+all_abund_fc <- data.frame(c(abund_fc_CE, abund_fc_CD, abund_fc_NE, abund_fc_ND), c(rep("Coherent", 2), rep("Non-coherent", 2)), rep(c("Enriched species", "Depleted species"),2))
+colnames(all_abund_fc) <- c("fc", "cat", "status")
+all_abund_fc <- all_abund_fc %>% mutate(status = factor(status, levels = c("Enriched species", "Depleted species")))
+
+# create barplot of fc of mean abundance Q1-Q4 for each subtype specie 
+fig_fc_quart_abund <- ggbarplot(all_abund_fc, x="cat", y = "fc", fill = "status", position = position_dodge(), palette = c(PD_enriched_col, PD_depleted_col), title = "Abundance Fold Change Q1 - Q4") + 
+  theme_classic() + theme(legend.title = element_blank()) + xlab("") + ylab("") + 
+  scale_x_discrete(labels=c("Coherent" = "Coherent\nspecies", 
+                            "Non-coherent" = "Noncoherent\nspecies")) + 
+  expand_limits(y = c(0,4)) + custom_theme
+
+fig_fc_quart_abund
+```
+
+
+```{r, fig.width=8, fig.height=6, fig.show='hide'}
+# BARPLOT PROPORTION QUARTILE - HC
+
+# sort proportion in ascending way when it's enriched specie type and 
+# in decreasing way when it's depleted specie type  
+# then split into quartile and compute mean of proportion for each quartile  
+HC_quartile_CE_prop <- get_quartile_HC(grp_CE_prop$HC, "E")
+HC_prop_mean_quartile_CE <-  HC_quartile_CE_prop %>% compute_mean() 
+
+HC_quartile_NE_prop <- get_quartile_HC(grp_NE_prop$HC, "E")
+HC_prop_mean_quartile_NE <- HC_quartile_NE_prop %>% compute_mean() 
+
+HC_quartile_CD_prop <- get_quartile_HC(grp_CD_prop$HC, "D")
+HC_prop_mean_quartile_CD <- HC_quartile_CD_prop %>% compute_mean() 
+
+HC_quartile_ND_prop <- get_quartile_HC(grp_ND_prop$HC, "D")
+HC_prop_mean_quartile_ND <- HC_quartile_ND_prop %>% compute_mean() 
+
+
+df_list_qHC_prop <- list("Coherent enriched species" = HC_prop_mean_quartile_CE, 
+                          "Coherent depleted species" = HC_prop_mean_quartile_CD, 
+                          "Noncoherent enriched species" = HC_prop_mean_quartile_NE, 
+                          "Noncoherent depleted species" = HC_prop_mean_quartile_ND)
+
+# custom final barplot
+custom_theme <- theme(axis.text = element_text(size = 15), 
+                      axis.title = element_text(size = 15), 
+                      plot.title = element_text(size = 15), 
+                      legend.position = "none")
+
+# create list of proportion barplot for each specie type 
+bp_list_qHC_prop <- list()
+for (i in 1:length(df_list_qHC_prop)){
+  bp_name <- names(df_list_qHC_prop[i])
+  bp_color <- ifelse(str_detect(bp_name, ".*enriched.*"), PD_enriched_col, PD_depleted_col)
+  # barplot 
+  bp <- ggbarplot(df_list_qHC_prop[[i]], x = "variable", y = "value", fill = bp_color, title = bp_name, ylab = "", xlab = "") + custom_theme
+  bp_list_qHC_prop[[i]] <- bp
+}
+
+# arrange barplot
+fig_qHC_prop <- ggarrange(plotlist = bp_list_qHC_prop)
+fig_qHC_prop <- annotate_figure(fig_qHC_prop, left = text_grob("Proportion (%)", color = "black", rot = 90, size = 15)) 
+fig_qHC_prop
+```
+
+```{r}
+# PROPORTION FC QUARTILE Q1 Q4 - HC
+
+# compute fold change (fc) of mean proportion between Q1 and Q4 for each subtype specie 
+prop_fc_CE <- foldchange(HC_prop_mean_quartile_CE$value[4], HC_prop_mean_quartile_CE$value[1])
+prop_fc_CD <- foldchange(HC_prop_mean_quartile_CD$value[1], HC_prop_mean_quartile_CD$value[4])
+prop_fc_NE <- foldchange(HC_prop_mean_quartile_NE$value[4], HC_prop_mean_quartile_NE$value[1])
+prop_fc_ND <- foldchange(HC_prop_mean_quartile_ND$value[1], HC_prop_mean_quartile_ND$value[4])
+
+# create dataframe of fc of mean proportion Q1-Q4 for each subtype specie 
+all_prop_fc <- data.frame(c(prop_fc_CE, prop_fc_CD, prop_fc_NE, prop_fc_ND), c(rep("Coherent", 2), rep("Non-coherent", 2)), rep(c("Enriched species", "Depleted species"),2))
+colnames(all_prop_fc) <- c("fc", "cat", "status")
+all_prop_fc <- all_prop_fc %>% mutate(status = factor(status, levels = c("Enriched species", "Depleted species")))
+
+
+fig_fc_quart_prop <- ggbarplot(all_prop_fc, x="cat", y = "fc", fill = "status", position = position_dodge(), palette = c(PD_enriched_col, PD_depleted_col), title = "Proportion Fold Change Q1 - Q4") + 
+  theme_classic() + custom_theme + xlab("") + ylab("") + 
+  scale_x_discrete(labels=c("Coherent" = "Coherent\nspecies", 
+                          "Non-coherent" = "Noncoherent\nspecies")) + 
+  expand_limits(y = c(0,4))
+fig_fc_quart_prop
+```
+
+
+```{r, fig.height=11, fig.width = 8, fig.show='hide'}
+# BARPLOT PROP AND ABUND QUARTILE - HC
+quartile_left <- ggarrange(fig_qHC_abund, fig_qHC_prop, nrow = 2, labels = c("A","B"), font.label = list(size = 17))
+quartile_left
+```
+
+
+```{r, fig.height=11, fig.width = 8, fig.show='hide'}
+# BARPLOT ABUND/PROP FC QUARTILE Q1 Q4 - HC
+quartile_right <- ggarrange(fig_fc_quart_abund, fig_fc_quart_prop, nrow = 2, labels = c("C","D"), font.label = list(size = 17))
+quartile_right
+``` 
+
+
+```{r, fig.height=9, fig.width = 13, fig.show='asis'}
+# MERGED ABUND/PROP QUARTILE AND ABUND/PROP FC QUARTILE - HC
+fig_quart_top <- ggarrange(quartile_left, quartile_right, ncol = 2, widths = c(2, 0.9))
+fig_quart_top 
+``` 
+
+
+# Extended Figure 6 
+
+```{r}
+group_bis_color <- c("HC"="#3c7538", "GBA_NMC"="#505491", "PD"="#94221F")
+color_HC_GBA_NMC = c(group_bis_color[1:2])       
+color_HC_PD = c(group_bis_color[c(1,3)])
+color_GBA_NMC_PD = c(group_bis_color[c(2,3)])
+
+```
+
+
+```{r}
+testR_msp.sign_HC_GBA_NMC_ht <- testR_msp.sign_HC_GBA_NMC
+testR_msp.sign_HC_PD_ht <- testR_msp_HC_PD %>%
+                              filter(q < 0.1)
+
+
+MSP_set$msp_id_name <- paste(MSP_set$msp_id, MSP_set$species)
+
+variable_select_clinic <- var_tab[!var_tab %in% c("Fruit", "Vegetables", "sleepiness",           "appendectomy","appendectomy_pd_yearsdiff","sex","education_n_years","ed_yrs" )] 
+
+
+groups_select <- list(c("HC", "GBA_NMC"),
+                c("HC", "PD"))
+
+list_correlation_variable <- list()
+list_plot_cor <- list()
+list_legend_cor <- list()
+list_merge <- list()
+leg_cor <- list()
+leg_gp <- list()
+
+for (gps in groups_select){
+  
+  if (gps[1] == "HC" & gps[2] == "GBA_NMC"){
+     size_lgd_gp = gpar(fontsize = 17)
+     size_label_gp = gpar(fontsize =15)
+     rownames_size = 15
+     colnames_size = 15
+     leg_cor[[1]] <- leg_gp[[1]] <- 15
+     leg_cor[[2]] <- leg_gp[[2]] <- 17
+     leg_gp[[3]] <- leg_gp[[4]] <- 0.5
+     
+  } else if (gps[1] == "HC" & gps[2] == "PD"){
+     size_lgd_gp = gpar(fontsize = 22)
+     size_label_gp = gpar(fontsize = 20)
+     rownames_size = 20
+     colnames_size = 25
+     leg_cor[[1]] <- leg_gp[[1]] <- 25
+     leg_cor[[2]] <- leg_gp[[2]] <- 27
+     leg_gp[[3]] <- leg_gp[[4]] <- 0.8
+  }
+  
+  names_file_cor <- paste("correlation", gps[1], gps[2], sep="_")
+  
+  if ("PD" %in% gps){
+    select_data <- temp_metadata %>%
+      filter(group_bis %in% c(gps[1], gps[2]))
+  } else {
+    select_data <- temp_metadata %>%
+      filter(group_bis %in% c(gps[1], gps[2]))
+  }
+  
+  name_to_select <- paste("sign", gps[1], gps[2], "ht",sep= "_")
+  
+  
+  ### for file with msp 
+  df_testR_msp <- get(paste("testR_msp", name_to_select, sep = "."))
+  
+  row_ha <-  HeatmapAnnotation(
+        status = df_testR_msp[[13]],
+        col = list(status = unlist(group_bis_color[c(gps[1], gps[2])])),
+        which = "row",
+        show_annotation_name = F,
+        show_legend = FALSE
+       )
+
+
+  
+  assign("df_testR.sign_msp", df_testR_msp)
+  
+  select_msp_data <- msp_fecal.filt10[rownames(df_testR.sign_msp), rownames(select_data)]
+  select_msp_data.t <- t(select_msp_data)
+  all(rownames(select_msp_data.t) == rownames(select_data))
+ 
+  
+  merged_data <- cbind(select_msp_data.t, select_data[match(rownames(select_msp_data.t),  rownames(select_data)), variable_select_clinic])
+  
+
+  list_correlation_variable[[names_file_cor]] <- list()
+      
+
+  res_cor <- rcorr(as.matrix(merged_data), type = "spearman")
+        
+  columns <- colnames(res_cor$r)[colnames(res_cor$r) %in% variable_select_clinic]
+  rows <- rownames(res_cor$r)[rownames(res_cor$r) %in% unique(MSP_set$msp_id)]
+        
+  mat_cor <- res_cor$r[rows, columns, drop = FALSE]
+  
+  mat_corP <- res_cor$P[rows, columns, drop = FALSE]
+  
+  for (name_df in c("mat_cor", "mat_corP")){
+    
+    df <- get(name_df)
+    
+    if (sum(is.na(df)) >= nrow(df)){
+    
+      na_columns <- apply(df, 2, function(col) all(is.na(col)))
+      df <- df[, !na_columns]
+      
+      assign(name_df, df)
+
+    }
+    
+  }
+        
+        
+  if (all(colnames(mat_cor) %in% variable_select_clinic)){
+    
+    colnames(mat_cor) <-  gsub("_", " ", colnames(mat_cor))
+    colnames(mat_corP) <- gsub("_", " ", colnames(mat_corP))
+  }
+        
+
+  if (all(rownames(mat_cor) %in%  MSP_set$msp_id)) {
+    
+    MSP_set$msp_id_name <- sapply(strsplit(MSP_set$msp_id_name, " sp\\."), `[`, 1)
+
+
+    replacement <- setNames(MSP_set$msp_id_name, MSP_set$msp_id)
+    
+    current_rownames <- rownames(mat_cor)
+    new_rownames <- replacement[current_rownames]
+    
+    rownames(mat_cor) <- new_rownames
+    rownames(mat_corP) <- new_rownames
+  }
+        
+  mat_cor2 <- mat_cor %>%
+    as.data.frame(.) %>%
+    rownames_to_column("clinic") %>%
+    pivot_longer(-clinic, names_to = "msp", values_to = "val_cor")
+  
+  mat_corP2 <- mat_corP %>%
+    as.data.frame(.) %>%
+    rownames_to_column("clinic") %>%
+    pivot_longer(-clinic, names_to = "msp", values_to = "val_pval")
+  
+  combined_mat_cor <- mat_cor2 %>%
+    inner_join(mat_corP2, by = c("clinic", "msp")) 
+  
+  list_correlation_variable[[names_file_cor]][["ht_clinic_varibale"]] <- combined_mat_cor
+        
+  assign("ht_clinic_variable", heatmap_plot(mat_cor, mat_corP, lgd_title = "Correlation values", size_lgd_gp, size_label_gp,  rownames_size, colnames_size, annot = row_ha))
+        
+  
+        
+  lgd_cor = Legend(col_fun = colorRamp2(c(-1, 0, 1), c("#D60C00FF", "white","#072AC8" )),
+                   title = "Correlation values",
+                   title_position = "topcenter",
+                   direction = "horizontal",
+                   labels_gp = gpar(col = "black", fontsize = leg_cor[[1]]),
+                   title_gp = gpar(col = "black", fontsize = leg_cor[[2]]),
+                   border = "black")
+
+  lgd_group = Legend(labels = c(gps[1], gps[2]),
+                     legend_gp = gpar(fill=c(group_bis_color[gps[1]],group_bis_color[gps[2]])),
+                     title = "Groups",
+                     title_position = "topcenter",
+                     nrow = 1,
+                     labels_gp = gpar(col = "black", fontsize = leg_gp[[1]]),
+                     title_gp = gpar(col = "black", fontsize = leg_gp[[2]]),
+                     grid_height = unit(leg_gp[[3]], "cm"), grid_width = unit(leg_gp[[4]], "cm"))
+
+  pd = packLegend(lgd_cor, lgd_group,
+                  direction = "horizontal",
+                  column_gap = unit(1.5, "cm"),
+                  row_gap = unit(3, "cm"))
+
+
+  name_ht <- paste("ht", gps[1], gps[2], sep="_")
+  legend_ht <- paste("leg", gps[1], gps[2], sep="_")
+  
+  list_plot_cor[[name_ht]] <- list()
+  list_plot_cor[[legend_ht]] <- pd
+  
+  list_plot_cor[[name_ht]][["ht_clinic_variable"]] <- ht_clinic_variable
+  
+}
+```
+
+```{r,fig.height= 25, fig.width= 28, fig.show='asis'}
+draw(list_plot_cor$ht_HC_GBA_NMC[[1]],   
+     annotation_legend_list = list_plot_cor$leg_HC_GBA_NMC, annotation_legend_side = "top", padding = unit(c(2, 1, 1, 9), "cm"))
+grid.text("B", 
+          x = unit(0.01, "npc"),  
+          y = unit(0.99, "npc"), 
+          gp = gpar(fontsize = 20, fontface = "bold"))
+```
+
+
+```{r, fig.height= 40, fig.width= 30, fig.show='asis'}
+draw(list_plot_cor$ht_HC_PD[[1]], 
+     annotation_legend_list = list_plot_cor$leg_HC_PD, 
+     annotation_legend_side = "top",
+     padding = unit(c(8, 0, 1, 25), "cm"))
+grid.text("A", 
+          x = unit(0.01, "npc"),  
+          y = unit(0.993, "npc"), 
+          gp = gpar(fontsize = 40, fontface = "bold"))
+``` 
+ 
+# Extended Figure 7
+```{r}
+# CORRELATIONS CLINICAL VS MSP in groups
+
+# list of variable for PD
+select_clinic_var <- c("moca_total", "upsit_total", "DQS_score", "updrs_i_total", "updrs_ii_total", "updrs_iii_total", "updrs_total", "scopa_cardiovascular", "scopa_gastrointestinal", "scopa_pupillomotor", "scopa_sexual", "scopa_thermoregulatory", "scopa_urinary", "scopa_total", "rbdsq_total", "bdi_total", "hads_anxiety_total", "hads_depression_total", "wcs_total", "ledd_total", "pd_dur", "age", "bmi", "hoehn_yahr")
+
+# variable selection for GBA_NMC and HC 
+select_clinic_var_bis <- select_clinic_var[!select_clinic_var %in% c("ledd_total", "pd_dur", "hoehn_yahr")] # keep age and bmi
+```
+
+
+```{r}
+## PD 
+# The data used are correlation of species with clinical parameters in PD patients (n = 271).
+
+# extract the clinic parameters and the 176 MSP abundance for 271 PD individuals 
+PD_data <- temp_metadata %>% filter(group_bis == "PD") %>% dplyr::select(all_of(select_clinic_var))
+PD_176abund <- msp_fecal.filt10[c(CE, NE, CD, ND), rownames(PD_data)]
+PD_176abund_t <- as.data.frame(t(PD_176abund))
+# dim(PD_176abund_t)
+# dim(PD_data)
+
+# checking
+all(rownames(PD_data) == rownames(PD_176abund_t))
+
+# merge clinic parameters and abundance of the 176 MSP
+merged_PD <- cbind(PD_176abund_t, PD_data)
+
+# compute spearman correlation
+cor_PD <- rcorr(as.matrix(merged_PD), type = "spearman") 
+mat_cor <- cor_PD$r
+mat_corP <- cor_PD$P
+
+# correlation and pvalue values between MSP abundance and clinical variables
+merge_mat_cor_PD <- get_corr_and_pval(cor_PD, PD_176abund)
+colnames(merge_mat_cor_PD)
+merge_mat_cor_PD
+```
+
+ 
+```{r, warning=F}
+## GBA_NMC 
+# The data used are correlation of species with clinical parameters in GBA_NMC patients (n = 43).  
+
+# extract the clinical parameters and the 176 MSP abundance for 43 GBA_NMC individuals (except : pd_dur and ledd_total)
+NMC_data <- temp_metadata %>% filter(group_bis == "GBA_NMC") %>% dplyr::select(all_of(select_clinic_var_bis))
+NMC_176abund <- msp_fecal.filt10[c(CE,NE,CD,ND), rownames(NMC_data)]
+NMC_176abund_t <- as.data.frame(t(NMC_176abund))
+all(rownames(NMC_176abund_t) == rownames(NMC_data))
+# dim(NMC_176abund_t)
+# dim(NMC_data)
+
+# merge clinical parameters and abundance of the 173 MSP
+merged_NMC <- cbind(NMC_176abund_t, NMC_data)
+
+# compute spearman correlations
+cor_NMC <- rcorr(as.matrix(merged_NMC), type = "spearman") 
+mat_cor <- cor_NMC$r
+mat_corP <- cor_NMC$P
+
+# correlation and pvalue values between MSP abundance and clinical variables
+merge_mat_cor_NMC <- get_corr_and_pval(cor_NMC, NMC_176abund)
+```
+
+ 
+```{r, warning=F}
+## HC 
+# The data used are correlation of species with clinical parameters in HC patients (n = 150).  
+
+# extract the clinic parameters and the 176 MSP abundance for 150 HC individuals 
+HC_data <- temp_metadata %>% filter(group_bis == "HC") %>% dplyr::select(all_of(select_clinic_var_bis))
+HC_176abund <- msp_fecal.filt10[c(CE, NE, CD, ND), rownames(HC_data)]
+HC_176abund_t <- as.data.frame(t(HC_176abund))
+all(rownames(HC_176abund_t) == rownames(HC_data))
+
+dim(HC_176abund_t)
+dim(HC_data)
+
+# merge clinic parameters and abundance of the 176 MSP
+merged_HC <- cbind(HC_176abund_t, HC_data)
+cor_HC <- rcorr(as.matrix(merged_HC), type = "spearman") 
+mat_cor <- cor_HC$r
+mat_corP <- cor_HC$P
+
+# correlation and pvalue values between MSP abundance and clinical variables
+merge_mat_cor_HC <- get_corr_and_pval(cor_HC, HC_176abund)
+```
+
+
+
+
+```{r}
+# CORRELATION PD vs GBA_NMC
+
+# merge correlation matrix of PD and GBA_NMC and 
+# extract significant correlation between clinical and MSP
+merged_corr_PD_NMC <- merge(merge_mat_cor_PD, merge_mat_cor_NMC, by = c("msp_id", "variable"))
+merged_corr_PD_NMC <- merged_corr_PD_NMC %>% filter(p_corr.x <0.05 & p_corr.y <0.05)
+
+# create new column to indicate if correlations are all positive or negative
+merged_corr_PD_NMC <- merged_corr_PD_NMC %>% mutate(same_corr_dir = ifelse(corr_dir.x == corr_dir.y, "yes", "no")) 
+merged_corr_PD_NMC %>% filter(same_corr_dir == "yes") 
+
+# checking
+dim(merged_corr_PD_NMC)
+merged_corr_PD_NMC %>% pull(msp_id) %>% unique() %>% length()
+merged_corr_PD_NMC %>% filter(same_corr_dir == "yes") 
+merged_corr_PD_NMC %>% filter(same_corr_dir == "yes") %>% pull(msp_id) %>% unique() %>% length()
+merged_corr_PD_NMC %>% filter(variable == "hoehn_yahr")
+merged_corr_PD_NMC %>% filter(same_corr_dir == "no")
+```
+
+
+
+```{r}
+# regression plot - PD and NMC 
+formula <- y ~ x
+reg_corr_NMC_PD <- ggplot(data = merged_corr_PD_NMC, aes(x = corr.x, y = corr.y)) + 
+  geom_point(aes(color= same_corr_dir), size = 3) + 
+  geom_smooth(method = "lm", se = F, formula = formula, linetype = 3, linewidth=0.8, color = "black") + 
+  #stat_poly_eq(use_label(c("R2")), label.x = 0.1, label.y = 0.9, size = 7) +
+  stat_correlation(method = "pearson", label.x = 0.1, label.y = 0.9, size = 7) +
+  xlab("Spearman correlation in PD") + 
+  ylab("Spearman correlation in GBA_NMC") + 
+  theme_classic() +
+  theme(legend.position = 'none', axis.title = element_text(size = 16), axis.text = element_text(size = 16)) 
+
+reg_corr_NMC_PD
+```
+
+
+
+
+```{r}
+# CORRELATION HC vs PD 
+
+# merge correlation matrix of PD and HC and 
+# extract significant correlation between clinical and MSP
+merged_corr_PD_HC <- merge(merge_mat_cor_PD, merge_mat_cor_HC, by = c("msp_id", "variable")) 
+merged_corr_PD_HC <- merged_corr_PD_HC %>% filter(p_corr.x <0.05 & p_corr.y <0.05)
+
+# create new column to indicate if correlations are all positive or negative
+merged_corr_PD_HC <- merged_corr_PD_HC %>% mutate(same_corr_dir = ifelse(corr_dir.x == corr_dir.y, "yes", "no")) 
+
+# check
+dim(merged_corr_PD_HC)
+merged_corr_PD_HC %>% pull(msp_id) %>% unique() %>% length()
+merged_corr_PD_HC %>% filter(same_corr_dir == "yes") 
+merged_corr_PD_HC %>% filter(same_corr_dir == "yes") %>% pull(msp_id) %>% unique() %>% length()
+```
+
+
+
+
+```{r}
+# regression plot
+formula <- y ~ x
+reg_corr_HC_PD <- ggplot(data = merged_corr_PD_HC, aes(x = corr.x, y = corr.y)) + 
+  geom_point(aes(color= same_corr_dir), size = 3) + 
+  geom_smooth(method = "lm", se = F, formula = formula, linetype = 3, linewidth=0.8, color = "black") + 
+  #stat_poly_eq(use_label(c("R2")), label.x=0.1, label.y = 0.9, size = 7) +
+  stat_correlation(method = "pearson", label.x=0.1, label.y = 0.9, size = 7) +
+  xlab("Spearman correlation in PD") + 
+  ylab("Spearman correlation in HC") + 
+  theme_classic() + 
+  theme(legend.position = 'none', axis.title = element_text(size = 16), axis.text = element_text(size = 16)) 
+
+reg_corr_HC_PD
+```
+
+
+```{r, fig.height=6, fig.width=14, fig.show='asis'}
+# FINAL CORRELATION PD VS GBA_NMC/HC 
+fig_corr <- ggarrange(reg_corr_NMC_PD, reg_corr_HC_PD, ncol = 2, labels = c("A", "B"), font.label = list(size = 17))
+fig_corr
+``` 
+ 
+
+ 
+# Extended Figure 8
+
+```{r}
+pdms16 <- c("msp_1302","msp_0060","msp_0639","msp_0250","msp_0480","msp_0665","msp_0541","msp_1581","msp_1558","msp_0044","msp_0274","msp_0545","msp_0086","msp_0379","msp_0510","msp_0524")
+pdms16_data <- HC_vs_PD_NMC.sign[pdms16,] %>% select(type)
+pdms16_data <- pdms16_data %>% mutate(cat = ifelse(rownames(pdms16_data) %in% c(CE, NE), "PD_enriched", "PD_depleted")) 
+```
+
+```{r}
+# extract the interest MSP abundance in HC and PD
+abund_pdms_HC <- msp_fecal.filt10[rownames(pdms16_data), HC_ind]
+abund_pdms_PD <- msp_fecal.filt10[rownames(pdms16_data), PD_ind]
+
+
+msp_enriched <- pdms16_data %>% filter(cat == "PD_enriched")
+msp_depleted <- pdms16_data %>% filter(cat == "PD_depleted")
+
+HC_count_enriched <- colSums(abund_pdms_HC[rownames(msp_enriched),]>0)
+HC_count_depleted <- colSums(abund_pdms_HC[rownames(msp_depleted),]>0)
+
+PD_count_enriched <- colSums(abund_pdms_PD[rownames(msp_enriched),]>0)
+PD_count_depleted <- colSums(abund_pdms_PD[rownames(msp_depleted),]>0)
+
+# checking 
+abund_pdms_HC %>% select(ASAPh_268) %>% filter(rownames(abund_pdms_HC) %in% c(CE, NE))
+abund_pdms_HC %>% select(ASAPh_384) %>% filter(rownames(abund_pdms_HC) %in% c(CD, ND))
+
+abund_pdms_PD %>% select(ASAPh_850) %>% filter(rownames(abund_pdms_PD) %in% c(CE, NE))
+abund_pdms_PD %>% select(ASAPh_850) %>% filter(rownames(abund_pdms_PD) %in% c(CD, ND))
+```
+
+
+
+```{r, fig.show='asis'}
+# checking
+all(names(HC_count_enriched) == names(HC_count_depleted))
+all(names(PD_count_enriched) == names(PD_count_depleted))
+
+HC_pdms <- HC_count_enriched - HC_count_depleted
+PD_pdms <- PD_count_enriched - PD_count_depleted
+
+# define breaks 
+breaks <- c(-Inf, -5, -2, 1, 4, 7, 10)
+labels <- c("-7 to -5", "-4 to -2", "-1 to 1", "2 to 4", "5 to 7", "8 to 10")
+
+# count occurence of PDMS score according to define breaks in HC and PD 
+HC_pdms_occ <- table(cut(HC_pdms, breaks = breaks, labels = labels))
+PD_pdms_occ <- table(cut(PD_pdms, breaks = breaks, labels = labels)) 
+
+df_HC_pdms_occ <- as.data.frame(HC_pdms_occ) %>% mutate(group_bis = "HC")
+df_PD_pdms_occ <- as.data.frame(PD_pdms_occ) %>% mutate(group_bis = "PD")
+df_pdms_occ <- df_HC_pdms_occ %>% rbind(df_PD_pdms_occ)
+
+# the barplot 
+fig_pdms <- ggbarplot(df_pdms_occ, x = "Var1", y = "Freq", position = position_dodge(), xlab = "PDMS score", ylab = "Number of individuals", title = "PDMS 16 distribution", fill = "group_bis") + scale_fill_manual(values = group_bis_color[c(1,3)]) + theme(legend.position = "none", axis.title = element_text(size = 15, color = "black"), axis.text = element_text(size = 13, color = "black")) + scale_y_continuous(breaks = seq(0, 80, 10))
+
+fig_pdms
+```
+
+ 
+
+# Extended Figure 9
+
+```{r}
+mod2 <- ftmt.nocore.fecal.baseline %>%
+    t() %>%
+    as.data.frame() 
+    
+
+mod_met2 <- mod2 %>%
+              filter(rownames(.) %in% rownames(temp_metadata)) %>%
+              merge(temp_metadata["group_bis"], by = "row.names") %>%
+              column_to_rownames(var = "Row.names") 
+```
+
+```{r}
+res_PD_HC <- testRelations2(x = mod_met2 %>%
+                                   filter(group_bis %in% c("HC", "PD")) %>%
+                                   select(-group_bis) %>%
+                                   t(), 
+                            y = mod_met2 %>%
+                                 filter(group_bis %in% c("HC", "PD")) %>%
+                                 mutate(group_bis = factor(group_bis, levels = c("HC", "PD"))) %>%
+                                 pull(group_bis), 
+                            type = "nonparametric", 
+                            multiple.adjust = "BH")
+
+res_GBA_NMC_HC <- testRelations2(x = t(mod_met2 %>%
+                                   filter(group_bis %in% c("HC", "GBA_NMC")) %>%
+                                   select(-group_bis)), 
+                            y = mod_met2 %>%
+                                 filter(group_bis %in% c("HC", "GBA_NMC")) %>%
+                                 mutate(group_bis = factor(group_bis, levels = c("GBA_NMC","HC"))) %>%
+                                 pull(group_bis), 
+                            type = "nonparametric", 
+                            multiple.adjust = "BH")
+```
+
+```{r}
+modul_subgroup_filter <- module_subgroup %>%
+                    filter(subgroup %in% c("CEM", "CDM"))
+```
+
+
+```{r}
+res_PD_HC <- res_PD_HC[rownames(res_PD_HC) %in% modul_subgroup_filter$module,]
+```
+
+```{r}
+res_GBA_NMC_HC <- res_GBA_NMC_HC[rownames(res_GBA_NMC_HC) %in% modul_subgroup_filter$module,]
+```
+
+
+```{r}
+for (df in c("res_PD_HC", "res_GBA_NMC_HC")){
+  data <- get(df)
+  nm <- paste("cliff", gsub("res_", "", df), sep = "_")
+  assign(nm, data[12])
+  
+}
+df_cliff <- cbind(cliff_GBA_NMC_HC, cliff_PD_HC)
+df_cliff$HC.PD_Cliffdelta <- df_cliff$HC.PD_Cliffdelta * -1
+```
+
+
+```{r include = FALSE}
+p <- ggplot(data = df_cliff, aes(x = HC.PD_Cliffdelta, y = GBA_NMC.HC_Cliffdelta, group = NULL)) +
+          geom_point(color = "black", size = 4, shape = 19) +
+          theme_classic() +
+          geom_smooth(method = "lm",  se = FALSE, color = "black", linetype = 3, linewidth = 1) +
+          stat_poly_eq(use_label(c("eq", "R2")), vjust = 0.5 , size = 7, output.type = "expression", parse = TRUE) +
+          labs(title = "A", x = "CD HC vs PD", y = "CD HC vs GBA_NMC") +
+          ylim(-0.2, 0.3)+
+          theme(plot.title = element_text(hjust = -0.17,
+                              size = 21,
+                              vjust = 3,
+                              face = "bold"),
+                legend.position = "none",
+                axis.title = element_text(size = 21, color = "black"),
+                axis.text = element_text(size = 19, color = "black"),
+                axis.title.x = element_text(vjust = -3),
+                axis.title.y = element_text(vjust = 4),
+                plot.margin = unit(c(0.7,1,1,1.1), "cm")
+              )
+```
+
+```{r include = FALSE}
+df_cliff_barplot <- df_cliff %>%
+                      pivot_longer(cols = everything(),
+                                   names_to = "Groups", 
+                                   values_to = "cliffdelta") %>%
+                      group_by(Groups) %>%
+                      dplyr::summarize("mean_cliffdelta" = mean(abs(cliffdelta))) %>%
+                      mutate(Groups = factor(Groups, levels = c("HC.PD_Cliffdelta", "GBA_NMC.HC_Cliffdelta")))
+                      
+
+
+pbar <- ggbarplot(
+  data = df_cliff_barplot,
+  x = "Groups",
+  y = "mean_cliffdelta",
+  position = position_dodge(),
+  color = "black",
+  fill = "Groups"
+) +
+  theme_classic() +
+  scale_y_continuous(expand = c(0, 0),
+                     limits = c(0, 0.24)) +
+  scale_fill_manual(values = c("HC.PD_Cliffdelta"="#3d3d3d",
+                               "GBA_NMC.HC_Cliffdelta"="#737373")) +
+  theme(
+    plot.title = element_text(hjust = -0.22,
+                              size = 21,
+                              vjust = 3,
+                              face = "bold"),
+    legend.position = "none",
+    legend.title = element_blank(),
+    axis.text.x = element_text(vjust = -1),
+    axis.title.x = element_text(vjust = -3),
+    axis.title.y = element_text(vjust = 5),
+    axis.title = element_text(size = 21, color = "black"),
+    axis.text = element_text(size = 19, color = "black"),
+    plot.margin = unit(c(0.7, 0.5, 1, 1.5), "cm")#, 
+  ) +
+  annotate("text", x = 1.5, y = 0.23, label = "****", size = 7) +
+  labs(title = "B", x = "Comparisons", y = "CD absolute values") +
+  scale_x_discrete(labels = c("HC vs PD", "HC vs GBA_NMC"))
+
+```
+
+```{r, fig.height= 7, fig.width= 17, fig.show='asis'}
+exfig7 <- grid.arrange(p, pbar, nrow = 1, 
+             widths= c(1.1, 0.9))
+exfig7
+```
