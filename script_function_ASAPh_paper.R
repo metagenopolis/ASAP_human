@@ -1,25 +1,26 @@
 
 
 # function that compute the regression from a dataframe 
-reg_plot <- function(df_melt, x, y, title = NULL, xlab = NULL, ylab = NULL, color_var = NULL, point_shape = 19, formula.pos = 0.9){
+reg_plot <- function(df_melt, x, y, title = NULL, xlab = NULL, ylab = NULL, color_var = NULL, point_size = 4, point_shape = 19, formula.pos = 0.9, title_size = 15){
     formula <- y ~ x
     p <- ggplot(data = df_melt, aes(x = !!as.symbol(x), y = !!as.symbol(y)))
     
     if (color_var %in% colnames(df_melt)){
-        p <- p + geom_point(aes(color = !!as.symbol(color_var)), size = 4, shape = point_shape) +
+        p <- p + geom_point(aes(color = !!as.symbol(color_var)), size = point_size, shape = point_shape) +
             scale_color_manual(values = c("black", "red"))
     } 
     else{ 
-        p <- p + geom_point(color = color_var, size = 4, shape = point_shape)
+        p <- p + geom_point(color = color_var, size = point_size, shape = point_shape)
     }
+    # Compute Spearman correlation 
+    rho <- cor(df_melt[,x], df_melt[,y], method = "spearman") 
     p <- p + 
         theme_classic() +
         geom_smooth(method = "lm", se = F, formula = formula, linetype = 3, linewidth=1, color = "black") +
-        stat_poly_eq(use_label(c("eq", "R2")), label.y = formula.pos, size = 7, output.type = "expression") +
-
-        xlab(xlab) +
-        ylab(ylab) + 
-        theme(legend.position = "none", axis.title = element_text(size = 20), axis.text = element_text(size = 20))
+        stat_poly_eq(aes(label = paste(..eq.label.., paste0("rho==", signif(rho, 2)), sep = "~~~")),
+                     label.y = formula.pos, size = 7, output.type = "expression", parse  = TRUE) + 
+        labs(title = title, x = xlab, y = ylab) + 
+        theme(legend.position = "none", plot.title = element_text(size = title_size), axis.title = element_text(size = 20), axis.text = element_text(size = 20))
     return(p)
 }
 
@@ -91,10 +92,10 @@ get_tab_pval_ttest <- function(list_CE_prop, list_CD_prop){
 } 
 
 # function that computes proportion of subtype specie relative to the group 
-compute_prop <- function(vec_group, metadata, abund_mat, vec_msp){ 
+compute_prop <- function(vec_group, metadata, abund_mat, vec_msp, col_group = "group_bis", col_sampleID = "MGP_ID_fecal_baseline"){ 
     grp_sub_prop <- list()
     for (grp in vec_group){ 
-        ind <- metadata %>% dplyr::filter(group_bis == grp) %>% pull(MGP_ID_fecal_baseline)
+        ind <- metadata[which(metadata[, col_group] == grp),  col_sampleID]
         # count nb of detected MSP in samples of each group  
         grp_abund <- abund_mat[, ind]
         grp_count <-  apply(grp_abund, 2, function(x) {length(which(x>0))})
@@ -111,10 +112,10 @@ compute_prop <- function(vec_group, metadata, abund_mat, vec_msp){
 }
 
 # function that computes abundance of subtype specie relative to the group 
-compute_abund <- function(vec_group, metadata, abund_mat, vec_msp){ 
+compute_abund <- function(vec_group, metadata, abund_mat, vec_msp, col_group = "group_bis", col_sampleID = "MGP_ID_fecal_baseline"){ 
     grp_sub_abund <- list()
     for (grp in vec_group){
-        ind <- metadata %>% dplyr::filter(group_bis == grp) %>% pull(MGP_ID_fecal_baseline)
+        ind <- metadata[which(metadata[, col_group] == grp),  col_sampleID]
         # sum MSP abundance in samples of each group 
         grp_abund <- abund_mat[, ind]
         grp_sum_abund <- apply(grp_abund, 2, sum)
@@ -131,9 +132,29 @@ compute_abund <- function(vec_group, metadata, abund_mat, vec_msp){
 
 
 # function that construct barplot
-show_barplot <- function(df_melt, x, y, fill, my_color, ylab = NULL, title = NULL, limits = NULL, pas = 1, show_legend){
+show_barplot <- function(df_melt, x, y, fill, my_color, ylab = NULL, title = NULL, limits = NULL, pas = 1, show_legend, size_title = 18, size_title_axis = 18, size_axis_text = 18){
     p <- ggbarplot(df_melt, x = x, y = y, fill = fill, position = position_dodge(), ylab = ylab, title = title) + 
         scale_fill_manual(values = my_color) + 
+        theme_classic()+
+        theme(legend.title=element_blank(), 
+              legend.position = show_legend, 
+              plot.title = element_text(size=size_title),
+              axis.title.x = element_blank(),
+              axis.title = element_text(size = size_title_axis, color = "black"),
+              axis.text = element_text(size = size_axis_text, color = "black"), 
+              plot.margin=unit(c(0.1,0,0,0.1), "cm")) 
+    if (!is.null(limits)){
+        p <- p + expand_limits(y = limits) + scale_y_continuous(breaks = seq(limits[1], limits[2], pas))  
+    }
+    return(p)
+}
+
+# function that construct boxplot 
+show_boxplot <- function(df_melt, x, y, fill, my_color, ylab = NULL, title = NULL, limits = NULL, pas = 1, show_legend){
+    p <- ggplot(df_melt, aes(x = !!sym(x), y = !!sym(y), fill = !!sym(fill))) +
+        geom_boxplot() + 
+        scale_fill_manual(values = my_color) + 
+        labs(y = ylab, title = title)+
         theme_classic()+
         theme(legend.title=element_blank(), 
               legend.position = show_legend, 
@@ -152,10 +173,14 @@ show_barplot <- function(df_melt, x, y, fill, my_color, ylab = NULL, title = NUL
 show_lm_eq <- function(data, x, y){
     formula <- as.formula(paste(y, x, sep = " ~ "))
     m <- lm(formula = formula, data)
-    eq <- substitute(italic(y) == a + b %.% italic(x)*","~~italic(R)^2~"="~r2,
+    
+    # Compute Spearman correlation 
+    rho <- cor(data[,x], data[,y], method = "spearman")
+    
+    eq <- substitute(italic(y) == a + b %.% italic(x)*" "~~italic(rho)~"="~r,
                      list(a = format(coef(m)[[1]], digits = 3), 
                           b = format(coef(m)[[2]], digits = 3), 
-                          r2 = format(summary(m)$r.squared, digits = 2)))
+                          r = format(rho, digits = 2)))
     as.character(as.expression(eq));                 
 }
 
@@ -275,45 +300,74 @@ get_quartile_PD <- function(data_list, msp_subgroup = "E"){
 
 
 
-get_quartile_NMC2 <- function(data_list, vec_msp){
-  n <- length(data_list)
-  print(n)
-  
-  if (vec_msp %in% c("CE", "NE")){ 
-    sorted <- sort(data_list)
-    # if n is pair 
-    if (n %% 2 == 0){ 
-      index_median1 <- n / 2
-      index_median2 <- n / 2 + 1
-      below <- sorted[1:index_median1]
-      above <- sorted[index_median2:n]
-      # if n is impair 
-    } else {
-      index_median <- (n + 1) / 2
-      # the median belong to the first group 
-      below <- sorted[1:(index_median-1)]
-      above <- sorted[index_median:n]
+get_median <- function(data_list, msp_subgroup = "E"){
+    n <- length(data_list)
+    print(n)
+    
+    if (msp_subgroup == "E"){ 
+        sorted <- sort(data_list)
+        # if n is pair 
+        if (n %% 2 == 0){ 
+            index_median1 <- n / 2
+            index_median2 <- n / 2 + 1
+            below <- sorted[1:index_median1]
+            above <- sorted[index_median2:n]
+            # if n is impair 
+        } else {
+            index_median <- (n + 1) / 2
+            # the median belong to the first group 
+            below <- sorted[1:(index_median-1)]
+            above <- sorted[index_median:n]
+        }
+    } else if (msp_subgroup == "D"){
+        sorted <- sort(data_list, decreasing = T)
+        # if n is pair 
+        if (n %% 2 == 0){ 
+            index_median1 <- n / 2
+            index_median2 <- n / 2 + 1
+            below <- sorted[1:index_median1]
+            above <- sorted[index_median2:n]
+            # if n is impair 
+        } else {
+            index_median <- (n + 1) / 2
+            print(index_median)
+            # the median belong to the first group 
+            below <- sorted[1:index_median]
+            above <- sorted[(index_median+1):n]
+        }
     }
-  } else if (vec_msp %in% c("CD", "ND")){
-    sorted <- sort(data_list, decreasing = T)
-    # if n is pair 
-    if (n %% 2 == 0){ 
-      index_median1 <- n / 2
-      index_median2 <- n / 2 + 1
-      below <- sorted[1:index_median1]
-      above <- sorted[index_median2:n]
-      # if n is impair 
-    } else {
-      index_median <- (n + 1) / 2
-      print(index_median)
-      # the median belong to the first group 
-      below <- sorted[1:index_median]
-      above <- sorted[(index_median+1):n]
-    }
-  }
-  return(list("below" = below, "above" = above))
+    return(list("below" = below, "above" = above))
 }  
 
+get_tercile <- function(data_list, msp_subgroup = "E"){
+    # Ascending sort of values if enriched MSP, descending sort if depleted MSP 
+    if (msp_subgroup == "E"){
+        sorted <- sort(data_list)
+    }
+    if (msp_subgroup == "D"){
+        sorted <- sort(data_list, decreasing = T)
+    }
+    n <- length(sorted)
+    
+    # Compute size : T1 = T3 ≥ T2 
+    base <- floor(n / 3)
+    remainder <- n %% 3
+    
+    # Distribution of the remainder : priority to T1 and T3 
+    sizes <- c(T1 = base, T2 = base, T3 = base)
+    if (remainder == 1) {
+        sizes["T1"] <- sizes["T1"] + 1
+    } else if (remainder == 2) {
+        sizes["T1"] <- sizes["T1"] + 1
+        sizes["T3"] <- sizes["T3"] + 1
+    } 
+    
+    # Attribution of T1, T2, T3 to values  
+    tercile <- rep(names(sizes), times = sizes)
+    
+    # Create final list
+    split(sorted, tercile)
+}
 
 # function that sort proportion/abundance in ascending way for enriched subtype specie
 # in descending way for depleted subtype specie and split into quartile for HC
@@ -335,7 +389,39 @@ get_quartile_HC <- function(data_list, msp_subgroup = "E"){
     return(quartile)
 }
 
-
+get_quartile <- function(data_list, msp_subgroup = "E"){
+    # Ascending sort of values if enriched MSP, descending sort if depleted MSP 
+    if (msp_subgroup == "E"){
+        sorted <- sort(data_list)
+    }
+    if (msp_subgroup == "D"){
+        sorted <- sort(data_list, decreasing = T)
+    }
+    n <- length(sorted)
+    
+    # Compute size : Q1 = Q4 ≥ Q2 = Q3
+    base <- floor(n / 4)
+    remainder <- n %% 4
+    
+    # Distribution of the remainder : priority to Q1 and Q4 
+    sizes <- c(Q1 = base, Q2 = base, Q3 = base, Q4 = base)
+    if (remainder == 1) {
+        sizes["Q1"] <- sizes["Q1"] + 1
+    } else if (remainder == 2) {
+        sizes["Q1"] <- sizes["Q1"] + 1
+        sizes["Q4"] <- sizes["Q4"] + 1
+    } else if (remainder == 3) {
+        sizes["Q1"] <- sizes["Q1"] + 1
+        sizes["Q2"] <- sizes["Q2"] + 1
+        sizes["Q4"] <- sizes["Q4"] + 1
+    }
+    
+    # Attribution of Q1, Q2, Q3 and Q4 to values  
+    quartile <- rep(names(sizes), times = sizes)
+    
+    # Create final list
+    split(sorted, quartile)
+}
 
 # function that compute mean using a list 
 compute_mean <- function(list){ 
@@ -388,47 +474,48 @@ get_corr_and_pval <- function(rcorr_out, abund_mat_grp){
 
 # function that compute mean and standard deviation using two subset of individuals  
 compute_mean_sd <- function(subset1, subset2, metadata, name_grp){
-  # get the metadata for selected individuals and compute its mean and sd for each variable
-  subset1_data <- metadata %>% filter(rownames(metadata) %in% names(subset1))
-  subset1_mean <- apply(subset1_data, 2, function(column) round(mean(column, na.rm = T), 1))
-  subset1_sd <- apply(subset1_data, 2, function(column) round(sd(column), 1))
-  # for checking purpose 
-  subset1_with_na <- colnames(subset1_data)[apply(subset1_data, 2, function(column) any(is.na(column)))]
-  
-  subset2_data <- metadata %>% filter(rownames(metadata) %in% names(subset2))
-  subset2_mean <- apply(subset2_data, 2, function(column) round(mean(column, na.rm = T), 1))
-  subset2_sd <- apply(subset2_data, 2, function(column) round(sd(column, na.rm = T), 1))
-  subset2_with_na <- colnames(subset2_data)[apply(subset2_data, 2, function(column) any(is.na(column)))]
-  
-  # print("Subset1, NA variables : ", subset1_with_na)
-  # print("Subset2, NA variables : ", subset2_with_na)
-  
-  subset1_name <- paste0(name_grp, "_L")
-  subset2_name <- paste0(name_grp, "_M")  
-  list_mean <- setNames(list(subset1_mean, subset2_mean), 
+    # get the metadata for selected individuals and compute its mean and sd for each variable
+    subset1_data <- metadata %>% filter(rownames(metadata) %in% names(subset1))
+    subset1_mean <- apply(subset1_data, 2, function(column) round(mean(column, na.rm = T), 2))
+    subset1_sd <- apply(subset1_data, 2, function(column) round(sd(column), 1))
+    # for checking purpose 
+    subset1_with_na <- colnames(subset1_data)[apply(subset1_data, 2, function(column) any(is.na(column)))]
+    
+    subset2_data <- metadata %>% filter(rownames(metadata) %in% names(subset2))
+    subset2_mean <- apply(subset2_data, 2, function(column) round(mean(column, na.rm = T), 2))
+    subset2_sd <- apply(subset2_data, 2, function(column) round(sd(column, na.rm = T), 1))
+    subset2_with_na <- colnames(subset2_data)[apply(subset2_data, 2, function(column) any(is.na(column)))]
+    
+    # print("Subset1, NA variables : ", subset1_with_na)
+    # print("Subset2, NA variables : ", subset2_with_na)
+    
+    subset1_name <- paste0(name_grp, "_L")
+    subset2_name <- paste0(name_grp, "_M")  
+    list_mean <- setNames(list(subset1_mean, subset2_mean), 
+                          c(subset1_name, subset2_name))
+    
+    list_sd <- setNames(list(subset1_sd, subset2_sd), 
                         c(subset1_name, subset2_name))
-  
-  list_sd <- setNames(list(subset1_sd, subset2_sd), 
-                      c(subset1_name, subset2_name))
-  
-  
-  return(list("mean" = list_mean, "sd" = list_sd,  "data1" = subset1_data, "data2" = subset2_data)) 
+    
+    
+    return(list("mean" = list_mean, "sd" = list_sd,  "data1" = subset1_data, "data2" = subset2_data)) 
 }
 
 
 # function that perform Student test using t_test function and 
 # adjust the symbol of significance to pvalues (different from the those of t_test)
-compute_pval <- function(df){
+compute_pval <- function(df, col_group = "quartile"){
     res_test <- data.frame()
+    grps <- unique(df[, col_group])
     for (i in 1:(ncol(df)-1)){ 
         variable <- colnames(df)[i] 
-        formula <- as.formula(paste(variable, "quartile", sep = " ~ ")) 
-        mean1 <- mean(df[which(df$quartile == "Q1") ,variable], na.rm = T)
-        mean2 <- mean(df[which(df$quartile == "Q4") ,variable], na.rm = T)
+        formula <- as.formula(paste(variable, col_group, sep = " ~ ")) 
+        mean1 <- mean(df[which(df[, col_group] == grps[1]), variable], na.rm = T) 
+        mean2 <- mean(df[which(df[, col_group] == grps[2]), variable], na.rm = T)
         direction <- ifelse(mean1 < mean2, "less", "greater")
         print(direction)
         
-        res <- t_test(data = df, formula = formula, alternative = direction, var.equal = T) 
+        res <- rstatix::t_test(data = df, formula = formula, alternative = direction, var.equal = T) 
         res <- res %>% mutate(p.signif = case_when(p < 0.0001 ~ "****",
                                                    p < 0.001 ~ "***",
                                                    p < 0.01 ~ "**",
@@ -438,7 +525,7 @@ compute_pval <- function(df){
     }
     colnames(res_test)[1] <- "y"
     return(res_test)
-  
+    
 }
 
 
@@ -448,59 +535,65 @@ compute_pval <- function(df){
 ################################################################################################
 # Firstly a function to generate correlation table.
 cor_176_clinic <- function(list_df_cor, groups, data, metadata, clinic_var, name_var) {
-  
-  # Looping over groups 
-  for (gp in groups) {
     
-    names_nw_df <- paste0("correlation_", gp)
-    
-    intermediare_df <- data.frame()
-    
-    ## keeping the current group during each iteration.
-    data_filter <- data %>%
-      filter(group == gp) %>%
-      select(-group)
-    
-    # Looping over clinical variable
-    for (clin_var in clinic_var) {
-      
-      ## from data filter from groups keep only the current clinical variable
-      data_filter_clinic <- data_filter %>%
-        merge(metadata[clin_var, drop = FALSE], by = "row.names") %>%
-        column_to_rownames(var = "Row.names")
-      
-      ### setdiff is for only keep the msp name and remove the clinical var added previously
-      for (col in setdiff(names(data_filter_clinic), clin_var)) {
+    # Looping over groups 
+    for (gp in groups) {
         
-        ### if there is as much NA than there is row set the correlation and pvalue to NA
-        if (sum(is.na(data_filter_clinic[[clin_var]])) == nrow(data_filter)){
-          
-          intermediare_df <- rbind(intermediare_df, as.data.frame(setNames(
-            list(col, clin_var, "NA", "NA"),
-            c(name_var, "clinical_variable", "correlation", "pvalue"))))
-          
-          ### otherwise calculation of the spearman correlation value
-        } else {
-          
-          cor_res <- cor.test(data_filter_clinic[[col]], data_filter_clinic[[clin_var]], method = "spearman")
-          
-          intermediare_df <- rbind(intermediare_df, as.data.frame(setNames(
-            list(col, clin_var, cor_res$estimate, cor_res$p.value),
-            c(name_var, "clinical_variable", "correlation", "pvalue")
-          )))
-          
+        names_nw_df <- paste0("correlation_", gp)
+        
+        intermediare_df <- data.frame()
+        
+        ## keeping the current group during each iteration.
+        data_filter <- data %>%
+            filter(group == gp) %>%
+            select(-group)
+        
+        # Looping over clinical variable
+        for (clin_var in clinic_var) {
+            
+            ## from data filter from groups keep only the current clinical variable
+            data_filter_clinic <- data_filter %>%
+                merge(metadata[clin_var, drop = FALSE], by = "row.names") %>%
+                column_to_rownames(var = "Row.names")
+            
+            ### setdiff is for only keep the msp name and remove the clinical var added previously
+            for (col in setdiff(names(data_filter_clinic), clin_var)) {
+                
+                ### if there is as much NA than there is row set the correlation and pvalue to NA
+                if (sum(is.na(data_filter_clinic[[clin_var]])) == nrow(data_filter)){
+                    
+                    intermediare_df <- rbind(intermediare_df, as.data.frame(setNames(
+                        list(col, clin_var, NA, NA),
+                        c(name_var, "clinical_variable", "correlation", "pvalue"))))
+                    
+                    ### otherwise calculation of the spearman correlation value
+                } else {
+                    
+                    cor_res <- cor.test(data_filter_clinic[[col]], data_filter_clinic[[clin_var]], method = "spearman")
+                    
+                    intermediare_df <- rbind(intermediare_df, as.data.frame(setNames(
+                        list(col, clin_var, cor_res$estimate, cor_res$p.value),
+                        c(name_var, "clinical_variable", "correlation", "pvalue")
+                    )))
+                    
+                }
+                
+            }
         }
+        # Correction of pvalues using BH method
+        intermediare_df$qvalue <- p.adjust(intermediare_df$pvalue, method = "BH")
         
-      }
+        ### store the intermediaire dataframe to a list with corresponding name 
+        list_df_cor[[names_nw_df]] <- intermediare_df  
     }
     
-    ### store the intermediaire dataframe to a list with corresponding name 
-    list_df_cor[[names_nw_df]] <- intermediare_df  
-  }
-  
-  return(list_df_cor)  
+    return(list_df_cor)  
 }
 
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggpubr)
 
 # Then, a function for generating tables in a format easier to use.
 
@@ -533,56 +626,56 @@ prep_data_fig4 <- function(names_dataframe, # c() c("PD", "GBA_NMC", "HC"),
                            colnames_df_final #c("clinical_variable", "type", "correlation_pos", "correlation_neg")
                            
 ){
-  for (data_ in names_dataframe){
-    data <- get(data_)
-    
-    name <- paste(data_, "filter", sep = "_")
-    
-    assign(name, data %>%
-             mutate_at(vars(all_of(numeric_columns)), as.numeric) %>%
-             filter(pvalue < 0.05))
-  }
-  
-  for(data_ in names_dataframe_filter) {
-    data <- get(data_)
-    data$type <- eval(condition_ifelse)
-    assign(data_, data)
-  }
-  
-  final_df <- setNames(lapply(names_dataframe_filter, function(x) creating_df), names_dataframe_filter)
-  
-  final_df <- Map(function(df){colnames(df) <- colnames_df_final; df}, final_df)
-  
-  for(data_ in names_dataframe_filter){
-    data <- get(data_)
-    for (clin_var in clin_var_select){
-      
-      
-      reshaped_data <- data %>%
-        filter(clinical_variable == clin_var) %>%
-        group_by(clinical_variable, type) %>%
-        summarise(
-          correlation_pos = sum(correlation > 0),
-          correlation_neg = sum(correlation < 0)) %>%
-        distinct(.)
-      
-      final_df[[data_]] <- rbind(final_df[[data_]], reshaped_data)
-      
+    for (data_ in names_dataframe){
+        data <- get(data_)
+        
+        name <- paste(data_, "filter", sep = "_")
+        
+        assign(name, data %>%
+                   mutate_at(vars(all_of(numeric_columns)), as.numeric) %>%
+                   filter(pvalue < 0.05))
     }
-  }
-  
-  final_df <- lapply(final_df, function(df) df[-1, ])
-  
-  final_df <- lapply(final_df, function(df){
-    df$chi2 <- sapply(1:nrow(df), function(i){
-      chisq.test(c(df$correlation_pos[i], df$correlation_neg[i]), p = c(0.5, 0.5))$p.value
+    
+    for(data_ in names_dataframe_filter) {
+        data <- get(data_)
+        data$type <- eval(condition_ifelse)
+        assign(data_, data)
+    }
+    
+    final_df <- setNames(lapply(names_dataframe_filter, function(x) creating_df), names_dataframe_filter)
+    
+    final_df <- Map(function(df){colnames(df) <- colnames_df_final; df}, final_df)
+    
+    for(data_ in names_dataframe_filter){
+        data <- get(data_)
+        for (clin_var in clin_var_select){
+            
+            
+            reshaped_data <- data %>%
+                filter(clinical_variable == clin_var) %>%
+                group_by(clinical_variable, type) %>%
+                summarise(
+                    correlation_pos = sum(correlation > 0),
+                    correlation_neg = sum(correlation < 0)) %>%
+                distinct(.)
+            
+            final_df[[data_]] <- rbind(final_df[[data_]], reshaped_data)
+            
+        }
+    }
+    
+    final_df <- lapply(final_df, function(df) df[-1, ])
+    
+    final_df <- lapply(final_df, function(df){
+        df$chi2 <- sapply(1:nrow(df), function(i){
+            chisq.test(c(df$correlation_pos[i], df$correlation_neg[i]), p = c(0.5, 0.5))$p.value
+        })
+        df$chi2 <- formatC(df$chi2, format = "e", digits = 2)
+        df$chi2 <- as.numeric(df$chi2)
+        return(df)
     })
-    df$chi2 <- formatC(df$chi2, format = "e", digits = 2)
-    df$chi2 <- as.numeric(df$chi2)
-    return(df)
-  })
-  
-  return(final_df)
+    
+    return(final_df)
 }
 
 
@@ -590,10 +683,10 @@ prep_data_fig4 <- function(names_dataframe, # c() c("PD", "GBA_NMC", "HC"),
 ### Function that would be use in the plot function.
 
 tobind_row <- function(tobind, rows) {
-  for (i in seq_along(rows)) {
-    tobind[i, ] <- rows[[i]]
-  }
-  return(tobind)
+    for (i in seq_along(rows)) {
+        tobind[i, ] <- rows[[i]]
+    }
+    return(tobind)
 }
 
 # Then a function to create the Figure 4
@@ -636,209 +729,209 @@ graph_figure4_paper <- function(names_df_tobind, # c()
                                 width_two_plots #c()
                                 
 ){
-  list_plot <- list()
-  tobind <- list()
-  health_disease <- list()
-  list_legend <- list()
-  
-  for (dataframes in names(final_df)){
-    
-    data <- final_df[[dataframes]]
-    
-    if (dataframes %in% names_df_tobind){
-      tobind[[dataframes]] <- format_dataframe[[dataframes]]
-      colnames(tobind[[dataframes]]) <- colnames(data)
-      tobind[[dataframes]] <- tobind_row(tobind[[dataframes]], rows_tobind[[dataframes]])
-      tobind[[dataframes]] <- tobind[[dataframes]] %>%
-        mutate_at(vars(all_of(numeric_columns)), as.numeric)
-    }
-    
-    
-    if (dataframes %in% names_df_tobind){
-      
-      data <- rbind(data, tobind[[dataframes]])
-    }
-    
-    data <- data %>%
-      filter(!(!!sym(clinical_var_col) %in% to_exclude)) %>%
-      group_by(!!sym(clinical_var_col)) %>%
-      mutate(sum_ = sum(!!sym(pos_val)),
-             sum_n = sum(!!sym(neg_val)) * -1) %>%
-      ungroup()
-    
-    
-    data <- data %>%
-      mutate(sum_pos = sum_ + asterisk_pos[[dataframes]]) %>%
-      mutate(sum_neg = sum_n - asterisk_neg[[dataframes]]) %>%
-      select(-c(sum_, sum_n))
-    
-    data <- data %>%
-      mutate(sum_arrange = !!sym(pos_val) + !!sym(neg_val)) %>%
-      ungroup()
-    
-    data[[neg_val]] <- data[[neg_val]] * -1
-    
-    databis <- data %>%
-      pivot_longer(
-        cols = starts_with("correlation"),
-        names_to = name_type_cor_col,
-        values_to = name_type_cor_val) %>%
-      mutate(!!sym(name_type_cor_col) := case_when(
-        !!sym(name_type_cor_col) == pos_val ~ rename_pos_val,
-        !!sym(name_type_cor_col) == neg_val ~ rename_neg_val,
-        TRUE ~ !!sym(name_type_cor_col)))
-    
-    databis$color <- paste0(databis$type, databis[[name_type_cor_col]])
-    
-    to_add_y <- ifelse_condition_y(dataframes)
-    
-    
-    databis <- databis %>%
-      group_by(!!sym(clinical_var_col), type) %>%
-      mutate(chi2 = ifelse(!!sym(name_type_cor_val) == min(!!sym(name_type_cor_val)), 1, chi2))
-    
-    
-    databis <- databis %>%
-      mutate(asterisk = case_when(
-        chi2 > 0.01 & chi2 < 0.05 ~ "*",
-        chi2 > 0.001 & chi2 <= 0.01 ~ "**",
-        chi2 > 0.0001 & chi2 <= 0.001 ~ "***",
-        chi2 <= 0.0001 ~ "****",
-        TRUE ~ ""
-      ))
-    
-    
-    databis <- databis %>%
-      mutate(!!sym(clinical_var_col) := gsub("_", " ", as.character(!!sym(clinical_var_col))))
-    
-    
-    databis <- databis %>%
-      arrange(clinical_var_col, sum_arrange) %>%
-      select(-sum_arrange)
-    
-    
-    databis_enriched <- databis %>%
-      filter(type == "enriched")
-    
-    databis_depleted <- databis %>%
-      filter(type == "depleted")
-    
-    
-    for (which_plot in which_kind_plot){
-      
-      if (which_plot == "health"){
-        
-        clinical_filter <- list_clinical_variable[[1]]
-        length_clin <- length(list_clinical_variable[[1]])
-        
-      } else if (which_plot == "disease"){
-        
-        
-        clinical_filter  <- list_clinical_variable[[2]]
-        length_clin <- length(list_clinical_variable[[2]])
-        
-      } else {
-        
-        clinical_filter <- c(list_clinical_variable[[1]], list_clinical_variable[[2]])
-        length_clin <- length(c(list_clinical_variable[[1]],list_clinical_variable[[2]]))
-      }
-      
-      
-      asterisk_txt_pos <- geom_text(data = databis_enriched %>%
-                                      filter(!!sym(clinical_var_col) %in% clinical_filter),
-                                    aes(x = !!sym(clinical_var_col),
-                                        y = (sum_pos),
-                                        label = asterisk),
-                                    vjust = -0.5, size = size_asterisk[[dataframes]], color = "black", angle = 0)
-      
-      asterisk_txt_neg <- geom_text(data = databis_depleted %>%
-                                      filter(!!sym(clinical_var_col) %in% clinical_filter),
-                                    aes(x = !!sym(clinical_var_col),
-                                        y = sum_neg,
-                                        label = asterisk),
-                                    vjust = -0.5, size = size_asterisk[[dataframes]], color = "black", angle = 0)
-      
-      
-      health_disease[[length(health_disease) +1]] <-
-        ggplot(databis %>%
-                 filter(!!sym(clinical_var_col) %in% clinical_filter) %>%
-                 mutate(!!sym(clinical_var_col) := factor(!!sym(clinical_var_col), level = clinical_filter)) %>%
-                 mutate(color = factor(color, level = c("enrichedpositive", "enrichednegative",
-                                                        "depletedpositive", "depletednegative"))),
-               aes(x= !!sym(clinical_var_col))) +
-        
-        
-        geom_bar(aes(y=ifelse(correlation_value > 0, correlation_value, 0), fill = color), stat = "identity", color = "black") +
-        geom_bar(aes(y=ifelse(correlation_value < 0, correlation_value, 0), fill = color), stat = "identity", color = "black") +
-        
-        theme_classic() +
-        
-        
-        scale_y_continuous(breaks = limits_by[[dataframes]] ,
-                           limits = limits_[[dataframes]],
-                           labels = limits_by[[dataframes]]) +
-        
-        labs(y = paste(number_of[1], to_add_y, number_of[2], sep = " ")) +
-        
-        labs_plot[[dataframes]] +
-        
-        
-        theme_size[[dataframes]]  +
-        
-        
-        scale_fill_manual(values = colors_fill,
-                          labels = labels_legend,
-                          breaks = keep_in_legend) +
-        
-        geom_hline(yintercept = 0, linetype = "solid", color = "black", size = 0.5) +
-        
-        
-        asterisk_txt_pos +
-        
-        asterisk_txt_neg
-      
-    }
-    
-    if (dataframes == "HC_filter"){
-      
-      gb_bis_ <- ggplot_gtable(ggplot_build(health_disease[[2]]))
-      leg_bis_ <- gb_bis_$grobs[which(sapply(gb_bis_$grobs, function(x) x$name) == "guide-box")]
-      leg_bis_ <- leg_bis_[[1]]
-      leg_bis_$layout[leg_bis_$layout$name == "guide-box"]$height <- unit(0, "pt")
-      list_legend[[length(list_legend) +1]] <- leg_bis_
-      
-    }
-    
-    
-    
-    p <- ggarrange(
-      health_disease[[1]] + theme_health_disease_1[[dataframes]]  + coord_cartesian(clip = "off"),
-      health_disease[[2]] + theme_health_disease_2[[dataframes]]  + coord_cartesian(clip = "off"),
-      ncol = 2,
-      widths = width_two_plots
-    )
-    
+    list_plot <- list()
+    tobind <- list()
     health_disease <- list()
+    list_legend <- list()
     
-    p2 <- p +
-      theme(plot.margin = unit(c(1, 1, 1, 1), "cm")) +
-      
-      annotate("text", x = x_legend[[dataframes]][1], y =y_legend[[dataframes]][1], label =  label_correlation[1], size = size_legend[[dataframes]][1], fontface = "italic") +
-      
-      annotate("text", x = x_legend[[dataframes]][2], y = y_legend[[dataframes]][2], label =  label_correlation[2], size = size_legend[[dataframes]][1], fontface = "italic")
+    for (dataframes in names(final_df)){
+        
+        data <- final_df[[dataframes]]
+        
+        if (dataframes %in% names_df_tobind){
+            tobind[[dataframes]] <- format_dataframe[[dataframes]]
+            colnames(tobind[[dataframes]]) <- colnames(data)
+            tobind[[dataframes]] <- tobind_row(tobind[[dataframes]], rows_tobind[[dataframes]])
+            tobind[[dataframes]] <- tobind[[dataframes]] %>%
+                mutate_at(vars(all_of(numeric_columns)), as.numeric)
+        }
+        
+        
+        if (dataframes %in% names_df_tobind){
+            
+            data <- rbind(data, tobind[[dataframes]])
+        }
+        
+        data <- data %>%
+            filter(!(!!sym(clinical_var_col) %in% to_exclude)) %>%
+            group_by(!!sym(clinical_var_col)) %>%
+            mutate(sum_ = sum(!!sym(pos_val)),
+                   sum_n = sum(!!sym(neg_val)) * -1) %>%
+            ungroup()
+        
+        
+        data <- data %>%
+            mutate(sum_pos = sum_ + asterisk_pos[[dataframes]]) %>%
+            mutate(sum_neg = sum_n - asterisk_neg[[dataframes]]) %>%
+            select(-c(sum_, sum_n))
+        
+        data <- data %>%
+            mutate(sum_arrange = !!sym(pos_val) + !!sym(neg_val)) %>%
+            ungroup()
+        
+        data[[neg_val]] <- data[[neg_val]] * -1
+        
+        databis <- data %>%
+            pivot_longer(
+                cols = starts_with("correlation"),
+                names_to = name_type_cor_col,
+                values_to = name_type_cor_val) %>%
+            mutate(!!sym(name_type_cor_col) := case_when(
+                !!sym(name_type_cor_col) == pos_val ~ rename_pos_val,
+                !!sym(name_type_cor_col) == neg_val ~ rename_neg_val,
+                TRUE ~ !!sym(name_type_cor_col)))
+        
+        databis$color <- paste0(databis$type, databis[[name_type_cor_col]])
+        
+        to_add_y <- ifelse_condition_y(dataframes)
+        
+        
+        databis <- databis %>%
+            group_by(!!sym(clinical_var_col), type) %>%
+            mutate(chi2 = ifelse(!!sym(name_type_cor_val) == min(!!sym(name_type_cor_val)), 1, chi2))
+        
+        
+        databis <- databis %>%
+            mutate(asterisk = case_when(
+                chi2 > 0.01 & chi2 < 0.05 ~ "*",
+                chi2 > 0.001 & chi2 <= 0.01 ~ "**",
+                chi2 > 0.0001 & chi2 <= 0.001 ~ "***",
+                chi2 <= 0.0001 ~ "****",
+                TRUE ~ ""
+            ))
+        
+        
+        databis <- databis %>%
+            mutate(!!sym(clinical_var_col) := gsub("_", " ", as.character(!!sym(clinical_var_col))))
+        
+        
+        databis <- databis %>%
+            arrange(clinical_var_col, sum_arrange) %>%
+            select(-sum_arrange)
+        
+        
+        databis_enriched <- databis %>%
+            filter(type == "enriched")
+        
+        databis_depleted <- databis %>%
+            filter(type == "depleted")
+        
+        
+        for (which_plot in which_kind_plot){
+            
+            if (which_plot == "health"){
+                
+                clinical_filter <- list_clinical_variable[[1]]
+                length_clin <- length(list_clinical_variable[[1]])
+                
+            } else if (which_plot == "disease"){
+                
+                
+                clinical_filter  <- list_clinical_variable[[2]]
+                length_clin <- length(list_clinical_variable[[2]])
+                
+            } else {
+                
+                clinical_filter <- c(list_clinical_variable[[1]], list_clinical_variable[[2]])
+                length_clin <- length(c(list_clinical_variable[[1]],list_clinical_variable[[2]]))
+            }
+            
+            
+            asterisk_txt_pos <- geom_text(data = databis_enriched %>%
+                                              filter(!!sym(clinical_var_col) %in% clinical_filter),
+                                          aes(x = !!sym(clinical_var_col),
+                                              y = (sum_pos),
+                                              label = asterisk),
+                                          vjust = -0.5, size = size_asterisk[[dataframes]], color = "black", angle = 0)
+            
+            asterisk_txt_neg <- geom_text(data = databis_depleted %>%
+                                              filter(!!sym(clinical_var_col) %in% clinical_filter),
+                                          aes(x = !!sym(clinical_var_col),
+                                              y = sum_neg,
+                                              label = asterisk),
+                                          vjust = -0.5, size = size_asterisk[[dataframes]], color = "black", angle = 0)
+            
+            
+            health_disease[[length(health_disease) +1]] <-
+                ggplot(databis %>%
+                           filter(!!sym(clinical_var_col) %in% clinical_filter) %>%
+                           mutate(!!sym(clinical_var_col) := factor(!!sym(clinical_var_col), level = clinical_filter)) %>%
+                           mutate(color = factor(color, level = c("enrichedpositive", "enrichednegative",
+                                                                  "depletedpositive", "depletednegative"))),
+                       aes(x= !!sym(clinical_var_col))) +
+                
+                
+                geom_bar(aes(y=ifelse(correlation_value > 0, correlation_value, 0), fill = color), stat = "identity", color = "black") +
+                geom_bar(aes(y=ifelse(correlation_value < 0, correlation_value, 0), fill = color), stat = "identity", color = "black") +
+                
+                theme_classic() +
+                
+                
+                scale_y_continuous(breaks = limits_by[[dataframes]] ,
+                                   limits = limits_[[dataframes]],
+                                   labels = limits_by[[dataframes]]) +
+                
+                labs(y = paste(number_of[1], to_add_y, number_of[2], sep = " ")) +
+                
+                labs_plot[[dataframes]] +
+                
+                
+                theme_size[[dataframes]]  +
+                
+                
+                scale_fill_manual(values = colors_fill,
+                                  labels = labels_legend,
+                                  breaks = keep_in_legend) +
+                
+                geom_hline(yintercept = 0, linetype = "solid", color = "black", size = 0.5) +
+                
+                
+                asterisk_txt_pos +
+                
+                asterisk_txt_neg
+            
+        }
+        
+        if (dataframes == "HC_filter"){
+            
+            gb_bis_ <- ggplot_gtable(ggplot_build(health_disease[[2]]))
+            leg_bis_ <- gb_bis_$grobs[which(sapply(gb_bis_$grobs, function(x) x$name) == "guide-box")]
+            leg_bis_ <- leg_bis_[[1]]
+            leg_bis_$layout[leg_bis_$layout$name == "guide-box"]$height <- unit(0, "pt")
+            list_legend[[length(list_legend) +1]] <- leg_bis_
+            
+        }
+        
+        
+        
+        p <- ggarrange(
+            health_disease[[1]] + theme_health_disease_1[[dataframes]]  + coord_cartesian(clip = "off"),
+            health_disease[[2]] + theme_health_disease_2[[dataframes]]  + coord_cartesian(clip = "off"),
+            ncol = 2,
+            widths = width_two_plots
+        )
+        
+        health_disease <- list()
+        
+        p2 <- p +
+            theme(plot.margin = unit(c(1, 1, 1, 1), "cm")) +
+            
+            annotate("text", x = x_legend[[dataframes]][1], y =y_legend[[dataframes]][1], label =  label_correlation[1], size = size_legend[[dataframes]][1], fontface = "italic") +
+            
+            annotate("text", x = x_legend[[dataframes]][2], y = y_legend[[dataframes]][2], label =  label_correlation[2], size = size_legend[[dataframes]][1], fontface = "italic")
+        
+        
+        p2 <- p2 +
+            labs(title = letter_fig[[dataframes]]) +
+            theme_plot_title[[dataframes]]
+        
+        
+        list_plot[[length(list_plot) +1]] <- p2
+        
+    }
     
     
-    p2 <- p2 +
-      labs(title = letter_fig[[dataframes]]) +
-      theme_plot_title[[dataframes]]
-    
-    
-    list_plot[[length(list_plot) +1]] <- p2
-    
-  }
-  
-  
-  return(list(plots = list_plot, legends = list_legend))
+    return(list(plots = list_plot, legends = list_legend))
 }
 
 library(circlize)
@@ -854,34 +947,116 @@ heatmap_plot <- function(mat_cor,
                          cluster_rows = TRUE, 
                          annot = NULL, 
                          cutoff_filled = 0.001) {
-  
-  col_fun <- colorRamp2(c(min(mat_cor), 0, max(mat_cor)), c("#D60C00FF", "white", "#072AC8")) 
-  
-  ht <- Heatmap(
-    as.matrix(mat_cor), 
-    cluster_rows = cluster_rows, 
-    cluster_columns = TRUE, 
-    col = col_fun,
-    right_annotation = annot,
-    row_names_gp = gpar(fontsize = rownames_size, col = "black"),
-    column_names_gp = gpar(fontsize = colnames_size, col = "black"),
-    show_heatmap_legend = FALSE,
-    cell_fun = function(j, i, x, y, w, h, fill) {
-      if (!is.na(mat_corP[i, j])) {
-        if (mat_corP[i, j] < cutoff_filled) {
-          grid.points(pch = 19, x, y, size = unit(0.5, "char"))
+    
+    col_fun <- colorRamp2(c(min(mat_cor), 0, max(mat_cor)), c("#D60C00FF", "white", "#072AC8")) 
+    
+    ht <- Heatmap(
+        as.matrix(mat_cor), 
+        cluster_rows = cluster_rows, 
+        cluster_columns = TRUE, 
+        col = col_fun,
+        right_annotation = annot,
+        row_names_gp = gpar(fontsize = rownames_size, col = "black"),
+        column_names_gp = gpar(fontsize = colnames_size, col = "black"),
+        show_heatmap_legend = FALSE,
+        cell_fun = function(j, i, x, y, w, h, fill) {
+            if (!is.na(mat_corP[i, j])) {
+                if (mat_corP[i, j] < cutoff_filled) {
+                    grid.points(pch = 19, x, y, size = unit(0.5, "char"))
+                }
+                if (mat_corP[i, j] < 0.05 & mat_corP[i, j] >= cutoff_filled) {
+                    grid.points(pch = 1, x, y, size = unit(0.5, "char")) 
+                }
+            }
+            
+            grid.rect(x = x, y = y, width = w, height = h, 
+                      gp = gpar(col = "black", fill = NA))  
         }
-        if (mat_corP[i, j] < 0.05 & mat_corP[i, j] >= cutoff_filled) {
-          grid.points(pch = 1, x, y, size = unit(0.5, "char")) 
-        }
-      }
-      
-      grid.rect(x = x, y = y, width = w, height = h, 
-                gp = gpar(col = "black", fill = NA))  
-    }
-  )
-  return(ht)
+    )
+    return(ht)
 }
 
 
+
+# Function to merge output of testR from 2 dataframes and generate reg plot 
+combine_CD_plots <- function(df1, df2, title = "", xlab = "", ylab = "") {
+    merged <- merge(df1, df2, by = "row.names")
+    
+    # Creation of subsets based on pvalues 
+    subsets <- list(
+        all = merged, # all merged 
+        sign = merged %>% filter(p.x < 0.05), # only sign. in ASAP
+        bothsign = merged %>% filter(p.x < 0.05 & p.y < 0.05) # only sign. in both data
+    )
+    
+    # Customized title for each plot 
+    titles <- list(
+        all = "All common MSP",
+        sign = "Sign. in ASAP",
+        bothsign = "Sign. in both"
+    ) 
+    
+    # Create plots 
+    plots <- lapply(names(subsets), function(name) {
+        reg_plot(
+            subsets[[name]],
+            x = "HC.PD_Cliffdelta.x",
+            y = "HC.PD_Cliffdelta.y",
+            color = "black",
+            point_size = 2.5, 
+            title = titles[[name]],
+            xlab = xlab,
+            ylab = ylab, 
+            formula.pos = 1.2, 
+            title_size = 16
+        ) 
+    })
+    
+    names(plots) <- paste0("testR_merged.", names(subsets))
+    return(plots)
+}
+
+
+
+# Function that compute abundance and proportion for interest groups of MSP in clinical groups and return lists
+compute_metrics <- function(vec_group = c("HC", "PD"), metadata, abund_mat, vec_msp, col_group, col_sampleID, msp_subgroup) {
+    abund <- compute_abund(vec_group, metadata, abund_mat, vec_msp, col_group, col_sampleID)
+    prop  <- compute_prop(vec_group, metadata, abund_mat, vec_msp, col_group, col_sampleID)
+    
+    HC_abund <- get_quartile(abund$HC, msp_subgroup) %>% compute_mean()
+    HC_prop  <- get_quartile(prop$HC, msp_subgroup) %>% compute_mean()
+    
+    PD_abund <- get_quartile(abund$PD, msp_subgroup) %>% compute_mean()
+    PD_prop  <- get_quartile(prop$PD, msp_subgroup) %>% compute_mean()
+    
+    list(HC_abund = HC_abund, HC_prop = HC_prop, PD_abund = PD_abund, PD_prop = PD_prop)
+}
+
+
+# Function to generate barplots of CE (coherent enriched) and CD (coherent depleted) for multiple cohorts and return a list of barplots 
+generate_barplot_list <- function(data_list, ylab_text) {
+    # Initialize a list 
+    bp_arranged <- list()
+    
+    # Custom for future barplots 
+    custom_theme <- theme(axis.text = element_text(size = 15), 
+                          axis.title = element_text(size = 15), 
+                          plot.title = element_text(size = 15), 
+                          legend.position = "none")
+    
+    for (i in seq_along(data_list)) {
+        bp_name <- names(data_list[[i]])
+        
+        bp_CE <- ggbarplot(data_list[[i]]$CE, x = "variable", y = "value",
+                           fill = PD_enriched_col, title = bp_name[1],
+                           ylab = ylab_text, xlab = "") + custom_theme
+        
+        bp_CD <- ggbarplot(data_list[[i]]$CD, x = "variable", y = "value",
+                           fill = PD_depleted_col, title = bp_name[2],
+                           ylab = "", xlab = "") + custom_theme
+        
+        bp_arranged[[names(data_list[i])]] <- ggarrange(bp_CE, bp_CD)
+    }
+    return(bp_arranged)
+}
 
