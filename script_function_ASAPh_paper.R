@@ -312,10 +312,10 @@ get_median <- function(data_list, msp_subgroup = "E"){
             index_median2 <- n / 2 + 1
             below <- sorted[1:index_median1]
             above <- sorted[index_median2:n]
-            # if n is impair 
+        # if n is impair 
         } else {
             index_median <- (n + 1) / 2
-            # the median belong to the first group 
+            # the median belong to the second group 
             below <- sorted[1:(index_median-1)]
             above <- sorted[index_median:n]
         }
@@ -327,7 +327,7 @@ get_median <- function(data_list, msp_subgroup = "E"){
             index_median2 <- n / 2 + 1
             below <- sorted[1:index_median1]
             above <- sorted[index_median2:n]
-            # if n is impair 
+        # if n is impair 
         } else {
             index_median <- (n + 1) / 2
             print(index_median)
@@ -430,6 +430,17 @@ compute_mean <- function(list){
     return(df)
 }
 
+
+process_fc <- function(df, cat, status){ 
+    min_val <- min(df$value)
+    max_val <- max(df$value)
+    fc <- foldchange(max_val, min_val)
+    
+    data.frame(
+        fc = fc, 
+        cat = cat, 
+        status = status)
+} 
 
 
 # function that take the matrices from rcorr output and arrange 
@@ -1058,5 +1069,16 @@ generate_barplot_list <- function(data_list, ylab_text) {
         bp_arranged[[names(data_list[i])]] <- ggarrange(bp_CE, bp_CD)
     }
     return(bp_arranged)
+}
+
+
+# Function to invert the sign of Cliffdelta (CD) values, make sure that CD values for MSP enriched in PD group are positive, and CD values for MSP enriched in HC group are negative
+invert_CD_direction <- function(df){ 
+    # make CD values positives if enriched in PD and make values CD negatives if enriched in HC, otherwise keep as is 
+    df <- df %>% 
+        mutate(HC.PD_Cliffdelta = case_when(HC.PD_status_Cliffdeltacorrected == "PD" ~ abs(HC.PD_Cliffdelta),
+                                            HC.PD_status_Cliffdeltacorrected == "HC" ~ -abs(HC.PD_Cliffdelta), 
+                                            TRUE ~ HC.PD_Cliffdelta
+        ))
 }
 

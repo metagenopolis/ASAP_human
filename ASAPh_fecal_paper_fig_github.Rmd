@@ -1675,52 +1675,51 @@ fig_contrast
 
 # Extended Figure 2 - PD 
 
-```{r, fig.width=8}
-# BARPLOT ABUNDANCE QUARTILE - PD  
-
-# sort abundance in ascending way when it's enriched specie type and 
-# in decreasing way when it's depleted specie type  
-# then split into quartile and compute mean of abundance for each quartile 
-PD_quartile_CE_abund <- get_quartile(grp_CE_abund$PD, "E")
-PD_abund_mean_quartile_CE <- compute_mean(PD_quartile_CE_abund)
-
-PD_quartile_NE_abund <- get_quartile(grp_NE_abund$PD, "E")
-PD_abund_mean_quartile_NE <- compute_mean(PD_quartile_NE_abund) 
-
-PD_quartile_CD_abund <- get_quartile(grp_CD_abund$PD, "D")
-PD_abund_mean_quartile_CD <- compute_mean(PD_quartile_CD_abund) 
-
-PD_quartile_ND_abund <- get_quartile(grp_ND_abund$PD, "D")
-PD_abund_mean_quartile_ND <- compute_mean(PD_quartile_ND_abund) 
-
-# check mean values
-round(PD_abund_mean_quartile_CE$value, digits = 1)
-round(PD_abund_mean_quartile_CD$value, digits = 1)
-round(PD_abund_mean_quartile_NE$value, digits = 1)
-
-# create a list of dataframe that contains the mean abundance of each quartile in each subtype specie
-df_list_qPD_abund <- list("Coherent enriched species" = PD_abund_mean_quartile_CE, 
-                          "Coherent depleted species" = PD_abund_mean_quartile_CD, 
-                          "Noncoherent enriched species" = PD_abund_mean_quartile_NE, 
-                          "Noncoherent depleted species" = PD_abund_mean_quartile_ND)
-
-
+```{r}
 # custom final barplot 
 custom_theme <- theme(axis.text = element_text(size = 15), 
                       axis.title = element_text(size = 15), 
                       plot.title = element_text(size = 15), 
+                      legend.title = element_blank(), 
                       legend.position = "none")
 
-# create list of abundance barplot for each specie type 
+# name of final barplots 
+name_sub_group <- c("Coherent enriched species", 
+                    "Coherent depleted species", 
+                    "Noncoherent enriched species", 
+                    "Noncoherent depleted species") 
+```
+
+
+```{r, fig.width=8}
+# BARPLOT ABUNDANCE QUARTILE - PD  
+
+# Create a list of vectors containing abundances computed in PD individuals for each subtype 
+PD_abund <- list(
+  CE = list(data = grp_CE_abund$PD, type = "E"),
+  CD = list(data = grp_CD_abund$PD, type = "D"),
+  NE = list(data = grp_NE_abund$PD, type = "E"),
+  ND = list(data = grp_ND_abund$PD, type = "D")
+) 
+# Apply "get_quartile" function to each vectors from "PD_abund"
+# The function sort abundances in ascending way when it's enriched specie type and in decreasing way when it's depleted specie type  
+# Then it split into quartile groups and compute mean of abundance for each quartile 
+qPD_abund <- lapply(PD_abund, function(g){ get_quartile(g$data, g$type) })
+
+# List of dataframe of that contains the mean abundances of each quartile for each subtype specie 
+df_list_qPD_abund <- lapply(qPD_abund, function(g){ compute_mean(g) })
+
+
+# Create list of abundance barplot for each specie type 
 bp_list_qPD_abund <- list()
 for (i in 1:length(df_list_qPD_abund)){
-  bp_name <- names(df_list_qPD_abund[i])
+  bp_name <- name_sub_group[i]
   bp_color <- ifelse(str_detect(bp_name, ".*enriched.*"), PD_enriched_col, PD_depleted_col)
   bp <- ggbarplot(df_list_qPD_abund[[i]], x = "variable", y = "value", fill = bp_color, title = bp_name, ylab = "", xlab = "") + custom_theme
   bp_list_qPD_abund[[i]] <- bp
 }
 
-# arrange barplot
+# Arrange barplot
 fig_qPD_abund <- ggarrange(plotlist = bp_list_qPD_abund)
 fig_qPD_abund <- annotate_figure(fig_qPD_abund, left = text_grob("Abundance (%)", color = "black", rot = 90, size = 15)) 
 fig_qPD_abund
@@ -1732,75 +1731,60 @@ fig_qPD_abund
 ```{r, fig.show='hide'}
 # BARPLOT ABUNDANCE FC QUARTILE Q1 Q4
 
-# compute fold change (fc) of mean abundance between Q1 and Q4 for each subtype specie 
-abund_fc_CE <- foldchange(PD_abund_mean_quartile_CE$value[4], PD_abund_mean_quartile_CE$value[1])
-abund_fc_CD <- foldchange(PD_abund_mean_quartile_CD$value[1], PD_abund_mean_quartile_CD$value[4])
-abund_fc_NE <- foldchange(PD_abund_mean_quartile_NE$value[4], PD_abund_mean_quartile_NE$value[1])
-abund_fc_ND <- foldchange(PD_abund_mean_quartile_ND$value[1], PD_abund_mean_quartile_ND$value[4])
+# Compute fold change (FC) of mean abundance between Q1 and Q4 for each subtype specie 
+# and create dataframe of FC of mean abundance Q1-Q4 for each subtype specie 
+PD_abund_fc <- rbind(
+  process_fc(df_list_qPD_abund$CE, "Coherent", "Enriched species"),
+  process_fc(df_list_qPD_abund$CD, "Coherent", "Depleted species"),
+  process_fc(df_list_qPD_abund$NE, "Non-coherent", "Enriched species"),
+  process_fc(df_list_qPD_abund$ND, "Non-coherent", "Depleted species")
+  )
+PD_abund_fc <- PD_abund_fc %>% 
+  mutate(status = factor(status, levels = c("Enriched species", "Depleted species")))
 
-# create dataframe of fc of mean abundance Q1-Q4 for each subtype specie 
-all_abund_fc <- data.frame(c(abund_fc_CE, abund_fc_CD, abund_fc_NE, abund_fc_ND), c(rep("Coherent", 2), rep("Non-coherent", 2)), rep(c("Enriched species", "Depleted species"),2))
-colnames(all_abund_fc) <- c("fc", "cat", "status")
-all_abund_fc <- all_abund_fc %>% mutate(status = factor(status, levels = c("Enriched species", "Depleted species")))
-
-# create barplot of fc of mean abundance Q1-Q4 for each subtype specie 
-fig_fc_quart_abund <- ggbarplot(all_abund_fc, x="cat", y = "fc", fill = "status", position = position_dodge(), palette = c(PD_enriched_col, PD_depleted_col), title = "Abundance Fold Change Q1 - Q4") + 
-  theme_classic() + theme(legend.title = element_blank()) + xlab("") + ylab("") + 
+# Create barplot of FC of mean abundance Q1-Q4 for each subtype specie 
+fig_fc_qPD_abund <- ggbarplot(PD_abund_fc, 
+                                x ="cat", 
+                                y = "fc", 
+                                fill = "status",
+                                position = position_dodge(), 
+                                palette = c(PD_enriched_col, PD_depleted_col),
+                                title = "Abundance Fold Change Q1 - Q4") + 
+  theme_classic() + xlab("") + ylab("") + 
   scale_x_discrete(labels=c("Coherent" = "Coherent\nspecies", 
                             "Non-coherent" = "Noncoherent\nspecies")) + 
   expand_limits(y = c(0,4)) + custom_theme
 
-fig_fc_quart_abund
+fig_fc_qPD_abund
 ```
 
 
 ```{r, fig.width=8, fig.height=6, fig.show='hide'}
 # BARPLOT PROPORTION QUARTILE
 
-# sort proportion in ascending way when it's enriched specie type and 
-# in decreasing way when it's depleted specie type  
-# then split into quartile and compute mean of proportion for each quartile  
-PD_quartile_CE_prop <- get_quartile(grp_CE_prop$PD, "E")
-PD_prop_mean_quartile_CE <- compute_mean(PD_quartile_CE_prop) 
+# Create a list of vectors containing proportions computed in PD individuals for each subtype 
+PD_prop <- list(
+  CE = list(data = grp_CE_prop$PD, type = "E"),
+  CD = list(data = grp_CD_prop$PD, type = "D"),
+  NE = list(data = grp_NE_prop$PD, type = "E"),
+  ND = list(data = grp_ND_prop$PD, type = "D")
+) 
+qPD_prop <- lapply(PD_prop, function(g){ get_quartile(g$data, g$type) })
 
-PD_quartile_NE_prop <- get_quartile(grp_NE_prop$PD, "E")
-PD_prop_mean_quartile_NE <- compute_mean(PD_quartile_NE_prop) 
-
-PD_quartile_CD_prop <- get_quartile(grp_CD_prop$PD, "D")
-PD_prop_mean_quartile_CD <- compute_mean(PD_quartile_CD_prop) 
-
-PD_quartile_ND_prop <- get_quartile(grp_ND_prop$PD, "D")
-PD_prop_mean_quartile_ND <- compute_mean(PD_quartile_ND_prop) 
+# List of dataframe of means of proportions in each quartile for each subtype 
+df_list_qPD_prop <- lapply(qPD_prop, function(g){ compute_mean(g) })
 
 
-# check mean values 
-round(PD_prop_mean_quartile_CE$value, digits = 1)
-round(PD_prop_mean_quartile_CD$value, digits = 1) 
-round(PD_prop_mean_quartile_NE$value, digits = 1) 
-round(PD_prop_mean_quartile_ND$value, digits = 1) 
-
-# give a name to table contains mean proportion for each quartile 
-df_list_qPD_prop <- list("Coherent enriched species" = PD_prop_mean_quartile_CE, 
-                          "Coherent depleted species" = PD_prop_mean_quartile_CD, 
-                          "Noncoherent enriched species" = PD_prop_mean_quartile_NE, 
-                          "Noncoherent depleted species" = PD_prop_mean_quartile_ND)
-
-# custom final barplot 
-custom_theme <- theme(axis.text = element_text(size = 15), 
-                      axis.title = element_text(size = 15), 
-                      plot.title = element_text(size = 15), 
-                      legend.position = "none")
-
-# create list of proportion barplot for each specie type 
+# Create list of proportion barplot for each specie type 
 bp_list_qPD_prop <- list()
 for (i in 1:length(df_list_qPD_prop)){
-  bp_name <- names(df_list_qPD_prop[i])
+  bp_name <- name_sub_group[i]
   bp_color <- ifelse(str_detect(bp_name, ".*enriched.*"), PD_enriched_col, PD_depleted_col)
   bp <- ggbarplot(df_list_qPD_prop[[i]], x = "variable", y = "value", fill = bp_color, title = bp_name, ylab = "", xlab = "") + custom_theme
   bp_list_qPD_prop[[i]] <- bp
 }
 
-# arrange barplot
+# Arrange barplot
 fig_qPD_prop <- ggarrange(plotlist = bp_list_qPD_prop)
 fig_qPD_prop <- annotate_figure(fig_qPD_prop, left = text_grob("Proportion (%)", color = "black", rot = 90, size = 15)) 
 fig_qPD_prop
@@ -1813,25 +1797,31 @@ fig_qPD_prop
 ```{r}
 # PROPORTION FC QUARTILE Q1 Q4 - PD
 
-# compute fold change (fc) of mean proportion between Q1 and Q4 for each subtype specie 
-prop_fc_CE <- foldchange(PD_prop_mean_quartile_CE$value[4], PD_prop_mean_quartile_CE$value[1])
-prop_fc_CD <- foldchange(PD_prop_mean_quartile_CD$value[1], PD_prop_mean_quartile_CD$value[4])
-prop_fc_NE <- foldchange(PD_prop_mean_quartile_NE$value[4], PD_prop_mean_quartile_NE$value[1])
-prop_fc_ND <- foldchange(PD_prop_mean_quartile_ND$value[1], PD_prop_mean_quartile_ND$value[4])
+# Compute fold change (FC) of mean proportion between Q1 and Q4 for each subtype specie 
+# and create dataframe of FC of mean proportion Q1-Q4 for each subtype specie 
+PD_prop_fc <- rbind(
+  process_fc(df_list_qPD_prop$CE, "Coherent", "Enriched species"),
+  process_fc(df_list_qPD_prop$CD, "Coherent", "Depleted species"),
+  process_fc(df_list_qPD_prop$NE, "Non-coherent", "Enriched species"),
+  process_fc(df_list_qPD_prop$ND, "Non-coherent", "Depleted species")
+  )
+PD_prop_fc <- PD_prop_fc %>% 
+  mutate(status = factor(status, levels = c("Enriched species", "Depleted species")))
 
-# create dataframe of fc of mean proportion Q1-Q4 for each subtype specie 
-all_prop_fc <- data.frame(c(prop_fc_CE, prop_fc_CD, prop_fc_NE, prop_fc_ND), c(rep("Coherent", 2), rep("Non-coherent", 2)), rep(c("Enriched species", "Depleted species"),2))
-colnames(all_prop_fc) <- c("fc", "cat", "status")
-all_prop_fc <- all_prop_fc %>% mutate(status = factor(status, levels = c("Enriched species", "Depleted species")))
-
-# create barplot of fc of mean proportion Q1-Q4 for each subtype specie
-fig_fc_quart_prop <- ggbarplot(all_prop_fc, x="cat", y = "fc", fill = "status", position = position_dodge(), palette = c(PD_enriched_col, PD_depleted_col), title = "Proportion Fold Change Q1 - Q4") + 
-  theme_classic() + custom_theme + xlab("") + ylab("") + 
+# Create barplot of FC of mean proportion Q1-Q4 for each subtype specie
+fig_fc_qPD_prop <- ggbarplot(PD_prop_fc, 
+                             x ="cat", 
+                             y = "fc", 
+                             fill = "status", 
+                             position = position_dodge(), 
+                             palette = c(PD_enriched_col, PD_depleted_col), 
+                             title = "Proportion Fold Change Q1 - Q4") + 
+  theme_classic() + xlab("") + ylab("") + 
   scale_x_discrete(labels=c("Coherent" = "Coherent\nspecies", 
                           "Non-coherent" = "Noncoherent\nspecies")) + 
-  expand_limits(y = c(0,4))
+  expand_limits(y = c(0,4)) + custom_theme
 
-fig_fc_quart_prop
+fig_fc_qPD_prop
 ```
 
 
@@ -1839,22 +1829,22 @@ fig_fc_quart_prop
 
 ```{r, fig.height=11, fig.width = 8, fig.show='hide'}
 # BARPLOT PROPORTION & ABUNDANCE QUARTILE - PD
-quartile_left <- ggarrange(fig_qPD_abund, fig_qPD_prop, nrow = 2, labels = c("A","B"), font.label = list(size = 17))
-quartile_left
+fig_qPD_left <- ggarrange(fig_qPD_abund, fig_qPD_prop, nrow = 2, labels = c("A","B"), font.label = list(size = 17))
+fig_qPD_left
 ```
 
 
 ```{r, fig.height=11, fig.width = 8, fig.show='hide'}
 # BARPLOT ABUND/PROP FC QUARTILE Q1 Q4 - PD
-quartile_right <- ggarrange(fig_fc_quart_abund, fig_fc_quart_prop, nrow = 2, labels = c("C","D"), font.label = list(size = 17))
-quartile_right
+fig_qPD_right <- ggarrange(fig_fc_qPD_abund, fig_fc_qPD_prop, nrow = 2, labels = c("C","D"), font.label = list(size = 17))
+fig_qPD_right
 ``` 
 
 
 ```{r, fig.height=9, fig.width = 13, fig.show='asis'}
 # MERGED ABUND/PROP QUARTILE AND ABUND/PROP FC QUARTILE
-fig_quart_top <- ggarrange(quartile_left, quartile_right, ncol = 2, widths = c(2, 0.9))
-fig_quart_top 
+fig_qPD_top <- ggarrange(fig_qPD_left, fig_qPD_right, ncol = 2, widths = c(2, 0.9))
+fig_qPD_top 
 ``` 
 
 
@@ -2104,72 +2094,76 @@ fig_medication_duration
 
 # Extended Figure 4
 ```{r}
-# order individuals according to enriched or depleted type species and get quartiles
-NMC_med_abund_CE <- get_median(grp_CE_abund$GBA_NMC, "E")
-NMC_med_abund_CE_mean <- NMC_med_abund_CE %>% compute_mean()
+# Create a list of vectors containing abundances/proportions computed in GBA_NMC individuals for each subtype (CE and CD) 
+NMC_coh <- list(
+  CE_abund = list(data = grp_CE_abund$GBA_NMC, type = "E"),
+  CD_abund = list(data = grp_CD_abund$GBA_NMC, type = "D"),
+  CE_prop = list(data = grp_CE_prop$GBA_NMC, type = "E"),
+  CD_prop = list(data = grp_CD_prop$GBA_NMC, type = "D")
+)
 
-NMC_med_abund_CD <- get_median(grp_CD_abund$GBA_NMC, "D")
-NMC_med_abund_CD_mean <- NMC_med_abund_CD %>% compute_mean()
+# Apply "get_median" function to each vectors from "NMC_coherent"
+# The function sort abundances/proportions in ascending way when it's enriched specie type and in decreasing way when it's depleted specie type  
+# Then it split into median groups and compute mean of abundance/proportion for each median groups  
+median_NMC_coh <- lapply(NMC_coherent, function(g){ get_median(g$data, g$type)}) 
 
-NMC_med_prop_CE <- get_median(grp_CE_prop$GBA_NMC, "E")
-NMC_med_prop_CE_mean <- NMC_med_prop_CE %>% compute_mean()
 
-NMC_med_prop_CD <- get_median(grp_CD_prop$GBA_NMC, "D")
-NMC_med_prop_CD_mean <- NMC_med_prop_CD %>% compute_mean()
-
-vec_median_mean <- c("NMC_med_abund_CE_mean", "NMC_med_abund_CD_mean", "NMC_med_prop_CE_mean", "NMC_med_prop_CD_mean")
+# List of dataframe of that contains the mean abundances/proportions of each subgroup for each subtype specie 
+median_NMC_means <- lapply(median_NMC_coh, function(g) { compute_mean(g)})
 
 # check 
-length(NMC_med_prop_CD$below)
-length(NMC_med_prop_CD$above)
+length(median_NMC_coh$CD_abund$below)
+length(median_NMC_coh$CD_abund$above)
 
-length(NMC_med_abund_CD$below)
-length(NMC_med_abund_CD$above)
-
-length(NMC_med_abund_CE$below)
-length(NMC_med_abund_CE$above)
+length(median_NMC_coh$CE_abund$below)
+length(median_NMC_coh$CE_abund$above)
 ```
 
  
 ```{r}
-# Student test 
-ttest_median_abund_CE <- t.test(NMC_med_abund_CE$below, NMC_med_abund_CE$above, alternative = "less", var.equal = T)$p.value %>% signif(.,3)
-ttest_median_abund_CD <- t.test(NMC_med_abund_CD$below, NMC_med_abund_CD$above, alternative = "greater", var.equal = T)$p.value %>% signif(.,3)
-ttest_median_prop_CE <- t.test(NMC_med_prop_CE$below, NMC_med_prop_CE$above, alternative = "less", var.equal = T)$p.value %>% signif(.,3)
-ttest_median_prop_CD <- t.test(NMC_med_prop_CD$below, NMC_med_prop_CD$above, alternative = "greater", var.equal = T)$p.value %>% signif(.,3)
-# summarize 
-vec_median_test <- c(ttest_median_abund_CE, ttest_median_abund_CD, ttest_median_prop_CE, ttest_median_prop_CD)
-
-# Fold change of mean 
-fc_median_abund_CE <- signif(mean(NMC_med_abund_CE$above)/mean(NMC_med_abund_CE$below),3) # +/- 
-fc_median_abund_CD <- signif(mean(NMC_med_abund_CD$below)/mean(NMC_med_abund_CD$above), 3) 
-
-fc_median_prop_CE <-  signif(mean(NMC_med_prop_CE$above)/mean(NMC_med_prop_CE$below),3)
-fc_median_prop_CD <-  signif(mean(NMC_med_prop_CD$below)/mean(NMC_med_prop_CD$above),3)
-
-# summarize
-vec_median_fc <- c(fc_median_abund_CE, fc_median_abund_CD, fc_median_prop_CE, fc_median_prop_CD)
+# Student test of median groups (below vs above) 
+median_NMC_test <- lapply(median_NMC_coh, function(g) { 
+  direction <- ifelse(mean(g$below) < mean(g$above), "less", "greater")  
+  ttest_res <- t.test(g$below, g$above, alternative = direction, var.equal = T)
+  signif(ttest_res$p.value, 3) 
+  }) %>% unlist()
+ 
+# Fold Change of means (below vs above)
+median_NMC_fc <- lapply(median_NMC_means, function(g) {
+  min_val <- min(g$value)
+  max_val <- max(g$value)
+  fc <- foldchange(max_val, min_val)
+  signif(fc, 3)
+}) %>% unlist() 
 ```
  
  
 ```{r}
 # BARPLOT MEDIAN - GBA_NMC
-name_median_list <- setNames(c("Abundance of coherent PD\nenriched species", 
-                                "Abundance of coherent PD\ndepleted species",
-                                "Proportion of coherent PD\nenriched species",
-                                "Proportion of coherent PD\ndepleted species"), vec_median_mean)
-
+name_median <- setNames(c("Abundance of coherent PD\nenriched species", 
+                          "Abundance of coherent PD\ndepleted species",
+                          "Proportion of coherent PD\nenriched species",
+                          "Proportion of coherent PD\ndepleted species"), names(median_NMC_means))
 
 bp_median_list <- list()
-for (i in 1:length(vec_median_mean)){
-  data <- get(vec_median_mean[i])
-  bp_title <- name_median_list[[i]]
+for (metric in names(median_NMC_means)){
+  data <- median_NMC_means[[metric]]
+  bp_title <- name_median[[metric]]
   bp_color <- ifelse(str_detect(bp_title, ".*enriched.*"), PD_enriched_col, PD_depleted_col)
-  p <- show_barplot(data, x = "variable", y = "value", fill = bp_color, title = bp_title, show_legend = "right", limits = c(0, round(max(data$value))+2), pas = 2, ylab = "%", size_title = 16.5, size_title_axis = 17, size_axis_text = 16) + 
-    annotate(geom = "text", label = paste("FC:", vec_median_fc[i]), x = 1.5, y=round(max(data$value))+3, size = 5) + 
-    annotate(geom = "text", label = paste("Student.p:", vec_median_test[i]), x=1.5, y=round(max(data$value))+1.5, size = 5)
-  print(p)
-  bp_median_list[[vec_median_mean[i]]] <- p
+  p <- show_barplot(data, 
+                    x = "variable",
+                    y = "value", 
+                    fill = bp_color, 
+                    title = bp_title, 
+                    show_legend = "right", 
+                    limits = c(0, round(max(data$value))+2), 
+                    pas = 2, 
+                    ylab = "%", 
+                    size_title = 16.5, size_title_axis = 17, size_axis_text = 16) + 
+    annotate(geom = "text", label = paste("FC:", median_NMC_fc[[metric]]), x = 1.5, y=round(max(data$value))+3, size = 5) + 
+    annotate(geom = "text", label = paste("Student.p:", median_NMC_test[[metric]]), x=1.5, y=round(max(data$value))+1.5, size = 5)
+
+  bp_median_list[[metric]] <- p
 }
 
 bp_median_list
@@ -2177,10 +2171,10 @@ bp_median_list
 
 ```{r}
 # BARPLOT ABUNDANCE COHERENT MEDIAN
-fig_median_top <- ggarrange(bp_median_list$NMC_med_abund_CE_mean, bp_median_list$NMC_med_abund_CD_mean, ncol = 2, labels = c("A", "B"), font.label = list(size = 17))
+fig_median_top <- ggarrange(bp_median_list$CE_abund, bp_median_list$CD_abund, ncol = 2, labels = c("A", "B"), font.label = list(size = 17))
 
 # BARPLOT PROPORTION COHERENT MEDIAN
-fig_median_bottom <- ggarrange(bp_median_list$NMC_med_prop_CE_mean, bp_median_list$NMC_med_prop_CD_mean, ncol = 2, labels = c("C", "D"), font.label = list(size = 17))
+fig_median_bottom <- ggarrange(bp_median_list$CE_prop, bp_median_list$CD_prop, ncol = 2, labels = c("C", "D"), font.label = list(size = 17))
 
 fig_median_top
 fig_median_bottom
@@ -2198,44 +2192,33 @@ fig_median
 ```{r, fig.width=8}
 # BARPLOT ABUNDANCE QUARTILE  
 
-# sort abundance in ascending way when it's enriched specie type and 
-# in decreasing way when it's depleted specie type  
-# then split into quartile and compute mean of abundance for each quartile
-HC_quartile_CE_abund <- get_quartile(grp_CE_abund$HC, "E")
-HC_abund_mean_quartile_CE <- HC_quartile_CE_abund %>% compute_mean()
+# Create a list of vectors containing abundances computed in HC individuals for each subtype 
+HC_abund <- list(
+  CE = list(data = grp_CE_abund$HC, type = "E"),
+  CD = list(data = grp_CD_abund$HC, type = "D"),
+  NE = list(data = grp_NE_abund$HC, type = "E"),
+  ND = list(data = grp_ND_abund$HC, type = "D")
+) 
 
-HC_quartile_NE_abund <- get_quartile(grp_NE_abund$HC, "E")
-HC_abund_mean_quartile_NE <- HC_quartile_NE_abund %>%  compute_mean() 
+# Apply "get_quartile" function to each vectors from "HC_abund"
+# The function sort abundances in ascending way when it's enriched specie type and in decreasing way when it's depleted specie type  
+# Then it split into quartile groups and compute mean of abundance for each quartile 
+qHC_abund <- lapply(HC_abund, function(g){ get_quartile(g$data, g$type)}) 
 
-# when depleted subtype specie, Q1 = more altered, Q4 = less altered
-HC_quartile_CD_abund <- get_quartile(grp_CD_abund$HC, "D")
-HC_abund_mean_quartile_CD <- HC_quartile_CD_abund %>% compute_mean() 
+# List of dataframe of that contains the mean abundances of each quartile for each subtype specie 
+df_list_qHC_abund <- lapply(qHC_abund, function(g) { compute_mean(g)})
+ 
 
-HC_quartile_ND_abund <- get_quartile(grp_ND_abund$HC, "D")
-HC_abund_mean_quartile_ND <- HC_quartile_ND_abund %>% compute_mean() 
-
-# create a list of dataframe that contains the mean abundance of each quartile in each subtype specie
-df_list_qHC_abund <- list("Coherent enriched species" = HC_abund_mean_quartile_CE, 
-                          "Coherent depleted species" = HC_abund_mean_quartile_CD, 
-                          "Noncoherent enriched species" = HC_abund_mean_quartile_NE, 
-                          "Noncoherent depleted species" = HC_abund_mean_quartile_ND)
-
-# custom final barplot
-custom_theme <- theme(axis.text = element_text(size = 15), 
-                      axis.title = element_text(size = 15), 
-                      plot.title = element_text(size = 15), 
-                      legend.position = "none")
-
-# create list of abundance barplot for each specie type 
+# Create list of abundance barplot for each specie type 
 bp_list_qHC_abund <- list()
 for (i in 1:length(df_list_qHC_abund)){
-  bp_name <- names(df_list_qHC_abund[i])
+  bp_name <- name_sub_group[i]
   bp_color <- ifelse(str_detect(bp_name, ".*enriched.*"), PD_enriched_col, PD_depleted_col)
   bp <- ggbarplot(df_list_qHC_abund[[i]], x = "variable", y = "value", fill = bp_color, title = bp_name, ylab = "", xlab = "") + custom_theme
   bp_list_qHC_abund[[i]] <- bp
 }
 
-# arrange barplot
+# Arrange barplot
 fig_qHC_abund <- ggarrange(plotlist = bp_list_qHC_abund)
 fig_qHC_abund <- annotate_figure(fig_qHC_abund, left = text_grob("Abundance (%)", color = "black", rot = 90, size = 15)) 
 fig_qHC_abund
@@ -2246,69 +2229,65 @@ fig_qHC_abund
 ```{r, fig.show='hide'}
 # BARPLOT ABUNDANCE FC QUARTILE Q1 Q4 - HC
 
-# compute fold change (fc) of mean abundance between Q1 and Q4 for each subtype specie 
-abund_fc_CE <- foldchange(HC_abund_mean_quartile_CE$value[4], HC_abund_mean_quartile_CE$value[1])
-abund_fc_CD <- foldchange(HC_abund_mean_quartile_CD$value[1], HC_abund_mean_quartile_CD$value[4])
-abund_fc_NE <- foldchange(HC_abund_mean_quartile_NE$value[4], HC_abund_mean_quartile_NE$value[1])
-abund_fc_ND <- foldchange(HC_abund_mean_quartile_ND$value[1], HC_abund_mean_quartile_ND$value[4])
+# Compute fold change (FC) of mean abundance between Q1 and Q4 for each subtype specie 
+# and create dataframe of FC of mean abundance Q1-Q4 for each subtype specie 
+HC_abund_fc <- rbind(
+  process_fc(df_list_qHC_abund$CE, "Coherent", "Enriched species"),
+  process_fc(df_list_qHC_abund$CD, "Coherent", "Depleted species"),
+  process_fc(df_list_qHC_abund$NE, "Non-coherent", "Enriched species"),
+  process_fc(df_list_qHC_abund$ND, "Non-coherent", "Depleted species"))
 
-# create dataframe of fc of mean abundance Q1-Q4 for each subtype specie 
-all_abund_fc <- data.frame(c(abund_fc_CE, abund_fc_CD, abund_fc_NE, abund_fc_ND), c(rep("Coherent", 2), rep("Non-coherent", 2)), rep(c("Enriched species", "Depleted species"),2))
-colnames(all_abund_fc) <- c("fc", "cat", "status")
-all_abund_fc <- all_abund_fc %>% mutate(status = factor(status, levels = c("Enriched species", "Depleted species")))
+HC_abund_fc <- HC_abund_fc %>% 
+  mutate(status = factor(status, levels = c("Enriched species", "Depleted species")))  
 
-# create barplot of fc of mean abundance Q1-Q4 for each subtype specie 
-fig_fc_quart_abund <- ggbarplot(all_abund_fc, x="cat", y = "fc", fill = "status", position = position_dodge(), palette = c(PD_enriched_col, PD_depleted_col), title = "Abundance Fold Change Q1 - Q4") + 
-  theme_classic() + theme(legend.title = element_blank()) + xlab("") + ylab("") + 
+# Create barplot of FC of mean abundance Q1-Q4 for each subtype specie 
+fig_fc_qHC_abund <- ggbarplot(HC_abund_fc, 
+                              x ="cat", 
+                              y = "fc", 
+                              fill = "status", 
+                              position = position_dodge(), 
+                              palette = c(PD_enriched_col, PD_depleted_col), 
+                              title = "Abundance Fold Change Q1 - Q4") + 
+  theme_classic() + xlab("") + ylab("") + 
   scale_x_discrete(labels=c("Coherent" = "Coherent\nspecies", 
                             "Non-coherent" = "Noncoherent\nspecies")) + 
   expand_limits(y = c(0,4)) + custom_theme
 
-fig_fc_quart_abund
+fig_fc_qHC_abund
 ```
 
 
 ```{r, fig.width=8, fig.height=6, fig.show='hide'}
 # BARPLOT PROPORTION QUARTILE - HC
 
-# sort proportion in ascending way when it's enriched specie type and 
-# in decreasing way when it's depleted specie type  
-# then split into quartile and compute mean of proportion for each quartile  
-HC_quartile_CE_prop <- get_quartile(grp_CE_prop$HC, "E")
-HC_prop_mean_quartile_CE <-  HC_quartile_CE_prop %>% compute_mean() 
+# Create a list of vectors containing proportions computed in HC individuals for each subtype 
+HC_prop <- list(
+  CE = list(data = grp_CE_prop$HC, type = "E"),
+  CD = list(data = grp_CD_prop$HC, type = "D"),
+  NE = list(data = grp_NE_prop$HC, type = "E"),
+  ND = list(data = grp_ND_prop$HC, type = "D")
+)
 
-HC_quartile_NE_prop <- get_quartile(grp_NE_prop$HC, "E")
-HC_prop_mean_quartile_NE <- HC_quartile_NE_prop %>% compute_mean() 
+# Apply "get_quartile" function to each vectors from "HC_prop"
+# The function sort proportions in ascending way when it's enriched specie type and in decreasing way when it's depleted specie type  
+# Then it split into quartile groups and compute mean of proportion for each quartile 
+qHC_prop <- lapply(HC_prop, function(g){ get_quartile(g$data, g$type)})
 
-HC_quartile_CD_prop <- get_quartile(grp_CD_prop$HC, "D")
-HC_prop_mean_quartile_CD <- HC_quartile_CD_prop %>% compute_mean() 
-
-HC_quartile_ND_prop <- get_quartile(grp_ND_prop$HC, "D")
-HC_prop_mean_quartile_ND <- HC_quartile_ND_prop %>% compute_mean() 
+# List of dataframe of that contains the mean proportions of each quartile for each subtype specie 
+df_list_qHC_prop <- lapply(qHC_prop, function(g) { compute_mean(g)})
 
 
-df_list_qHC_prop <- list("Coherent enriched species" = HC_prop_mean_quartile_CE, 
-                          "Coherent depleted species" = HC_prop_mean_quartile_CD, 
-                          "Noncoherent enriched species" = HC_prop_mean_quartile_NE, 
-                          "Noncoherent depleted species" = HC_prop_mean_quartile_ND)
-
-# custom final barplot
-custom_theme <- theme(axis.text = element_text(size = 15), 
-                      axis.title = element_text(size = 15), 
-                      plot.title = element_text(size = 15), 
-                      legend.position = "none")
-
-# create list of proportion barplot for each specie type 
+# Create list of proportion barplot for each specie type 
 bp_list_qHC_prop <- list()
 for (i in 1:length(df_list_qHC_prop)){
-  bp_name <- names(df_list_qHC_prop[i])
+  bp_name <- name_sub_group[i]
   bp_color <- ifelse(str_detect(bp_name, ".*enriched.*"), PD_enriched_col, PD_depleted_col)
   # barplot 
   bp <- ggbarplot(df_list_qHC_prop[[i]], x = "variable", y = "value", fill = bp_color, title = bp_name, ylab = "", xlab = "") + custom_theme
   bp_list_qHC_prop[[i]] <- bp
 }
 
-# arrange barplot
+# Arrange barplot
 fig_qHC_prop <- ggarrange(plotlist = bp_list_qHC_prop)
 fig_qHC_prop <- annotate_figure(fig_qHC_prop, left = text_grob("Proportion (%)", color = "black", rot = 90, size = 15)) 
 fig_qHC_prop
@@ -2317,45 +2296,52 @@ fig_qHC_prop
 ```{r}
 # PROPORTION FC QUARTILE Q1 Q4 - HC
 
-# compute fold change (fc) of mean proportion between Q1 and Q4 for each subtype specie 
-prop_fc_CE <- foldchange(HC_prop_mean_quartile_CE$value[4], HC_prop_mean_quartile_CE$value[1])
-prop_fc_CD <- foldchange(HC_prop_mean_quartile_CD$value[1], HC_prop_mean_quartile_CD$value[4])
-prop_fc_NE <- foldchange(HC_prop_mean_quartile_NE$value[4], HC_prop_mean_quartile_NE$value[1])
-prop_fc_ND <- foldchange(HC_prop_mean_quartile_ND$value[1], HC_prop_mean_quartile_ND$value[4])
+# Compute fold change (FC) of mean proportion between Q1 and Q4 for each subtype specie 
+# and create dataframe of FC of mean proportion Q1-Q4 for each subtype specie 
+HC_prop_fc <- rbind(
+  process_fc(df_list_qHC_prop$CE, "Coherent", "Enriched species"),
+  process_fc(df_list_qHC_prop$CD, "Coherent", "Depleted species"),
+  process_fc(df_list_qHC_prop$NE, "Non-coherent", "Enriched species"),
+  process_fc(df_list_qHC_prop$ND, "Non-coherent", "Depleted species"))
 
-# create dataframe of fc of mean proportion Q1-Q4 for each subtype specie 
-all_prop_fc <- data.frame(c(prop_fc_CE, prop_fc_CD, prop_fc_NE, prop_fc_ND), c(rep("Coherent", 2), rep("Non-coherent", 2)), rep(c("Enriched species", "Depleted species"),2))
-colnames(all_prop_fc) <- c("fc", "cat", "status")
-all_prop_fc <- all_prop_fc %>% mutate(status = factor(status, levels = c("Enriched species", "Depleted species")))
+HC_prop_fc <- HC_prop_fc %>% 
+  mutate(status = factor(status, levels = c("Enriched species", "Depleted species")))  
 
-
-fig_fc_quart_prop <- ggbarplot(all_prop_fc, x="cat", y = "fc", fill = "status", position = position_dodge(), palette = c(PD_enriched_col, PD_depleted_col), title = "Proportion Fold Change Q1 - Q4") + 
-  theme_classic() + custom_theme + xlab("") + ylab("") + 
+# Create barplot of FC of mean proportion Q1-Q4 for each subtype specie 
+fig_fc_qHC_prop <- ggbarplot(HC_prop_fc, 
+                             x ="cat", 
+                             y = "fc", 
+                             fill = "status", 
+                             position = position_dodge(), 
+                             palette = c(PD_enriched_col, PD_depleted_col), 
+                             title = "Proportion Fold Change Q1 - Q4") + 
+  theme_classic() + xlab("") + ylab("") + 
   scale_x_discrete(labels=c("Coherent" = "Coherent\nspecies", 
                           "Non-coherent" = "Noncoherent\nspecies")) + 
-  expand_limits(y = c(0,4))
-fig_fc_quart_prop
+  expand_limits(y = c(0,4)) + custom_theme
+
+fig_fc_qHC_prop
 ```
 
 
 ```{r, fig.height=11, fig.width = 8, fig.show='hide'}
 # BARPLOT PROP AND ABUND QUARTILE - HC
-quartile_left <- ggarrange(fig_qHC_abund, fig_qHC_prop, nrow = 2, labels = c("A","B"), font.label = list(size = 17))
-quartile_left
+fig_qHC_left <- ggarrange(fig_qHC_abund, fig_qHC_prop, nrow = 2, labels = c("A","B"), font.label = list(size = 17))
+fig_qHC_left
 ```
 
 
 ```{r, fig.height=11, fig.width = 8, fig.show='hide'}
 # BARPLOT ABUND/PROP FC QUARTILE Q1 Q4 - HC
-quartile_right <- ggarrange(fig_fc_quart_abund, fig_fc_quart_prop, nrow = 2, labels = c("C","D"), font.label = list(size = 17))
-quartile_right
+fig_qHC_right <- ggarrange(fig_fc_qHC_abund, fig_fc_qHC_prop, nrow = 2, labels = c("C","D"), font.label = list(size = 17))
+fig_qHC_right
 ``` 
 
 
 ```{r, fig.height=9, fig.width = 13, fig.show='asis'}
 # MERGED ABUND/PROP QUARTILE AND ABUND/PROP FC QUARTILE - HC
-fig_quart_top <- ggarrange(quartile_left, quartile_right, ncol = 2, widths = c(2, 0.9))
-fig_quart_top 
+fig_qHC_top <- ggarrange(fig_qHC_left, fig_qHC_right, ncol = 2, widths = c(2, 0.9))
+fig_qHC_top 
 ``` 
 
 
@@ -3078,16 +3064,19 @@ all(colnames(verified.msp.merged.clasen.PRJEB79944.filt10) == verified.metadata.
 ```{r}
 # HC vs PD comparison outputs 
 # ASAP 
-testR_asap_HC_PD <- testR_msp_HC_PD
+testR_asap_HC_PD <- testR_msp_HC_PD %>% invert_CD_direction()
 
 # USA 
 testR_wallen_HC_PD <- testRelations2(x = msp.merged.wallen.filt10, y = metadata.wallen.PRJNA834801$group, type = "nonparametric", paired= F, multiple.adjust = "BH")
+testR_wallen_HC_PD <- testR_wallen_HC_PD %>% invert_CD_direction()
 
 # KOR
 testR_jo_HC_PD <- testRelations2(x = msp.merged.jo.filt10, y = metadata.jo.PRJNA743718$group, type = "nonparametric", paired= F, multiple.adjust = "BH")
+testR_jo_HC_PD <- testR_jo_HC_PD %>% invert_CD_direction()
 
 # TUR 
 testR_clasen_HC_PD <- testRelations2(x = verified.msp.merged.clasen.PRJEB79944.filt10, y = verified.metadata.clasen.PRJEB79944$group, type = "nonparametric", paired= F, multiple.adjust = "BH")
+testR_clasen_HC_PD <- testR_clasen_HC_PD %>% invert_CD_direction()
 ```
 
 
