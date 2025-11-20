@@ -504,9 +504,6 @@ temp_metadata_bis <- temp_metadata[, var_tab]
 ```
 
 
-
-
-
 ```{r}
 # abundance coherent depleted (CD) for PD 
 PD_quartile_CD_abund <- get_quartile(grp_CD_abund$PD, "D") 
@@ -529,135 +526,6 @@ NMC_quartile_CD_prop <- get_median(grp_CD_prop$GBA_NMC, "D")
 length(HC16_lower)
 length(HC16_higher)
 ```
-
-
-
-```{r}
-# compute mean and standard deviation of variable of each quartile in each group 
-PD_quartile_clinical <- compute_mean_sd(PD_quartile_CD_abund$Q1, PD_quartile_CD_abund$Q4, temp_metadata_bis, "PD")
-
-NMC_quartile_clinical <- compute_mean_sd(NMC_quartile_CE_prop$below, NMC_quartile_CE_prop$above, temp_metadata_bis, "NMC")
-
-HC_quartile_clinical <- compute_mean_sd(HC_quartile_CE_prop$Q1, HC_quartile_CE_prop$Q4, temp_metadata_bis, "HC")
-
-HC16_quartile_clinical <- compute_mean_sd(HC16_lower, HC16_higher, temp_metadata_bis, "HC16")
-
-# checking
-HC16_quartile_clinical$mean$HC16_L[c("education_n_years", "ed_yrs")]
-HC16_quartile_clinical$mean$HC16_M[c("education_n_years", "ed_yrs")]
-```
-
-
-```{r}
-# construct dataframe contains the mean for selected variables in least and more altered group of HC/NMC/PD/HC16
-df_quartile_mean <- data.frame(PD_quartile_clinical$mean, NMC_quartile_clinical$mean, HC_quartile_clinical$mean, HC16_quartile_clinical$mean) %>% t() %>% as.data.frame()
-
-# construct df containing the sd for selected variables
-df_quartile_sd <- data.frame(PD_quartile_clinical$sd, NMC_quartile_clinical$sd, HC_quartile_clinical$sd, HC16_quartile_clinical$sd) %>% t() %>% as.data.frame() 
-colnames(df_quartile_sd) <- paste0(colnames(df_quartile_sd), "_sd")
-
-# bind means and sd columns  
-df_quartile_mean_sd <- df_quartile_mean %>% cbind(df_quartile_sd)
-
-# add group information
-df_quartile_mean_sd$group <- c(rep(c("PD", "NMC", "HC", "HC16"), each = 2))  
-df_quartile_mean_sd$group <- factor(df_quartile_mean_sd$group, levels = c("PD", "NMC", "HC", "HC16"))
-df_quartile_mean_sd$sub <- factor(rownames(df_quartile_mean_sd), levels = c(rownames(df_quartile_mean_sd)))
-df_quartile_mean_sd
-```
-
-
-
-
-
-```{r}
-# create dataframe containing the values of variables in each group and quartile
-PD_quartile_clinical_data <- PD_quartile_clinical$data1 %>% mutate(quartile = "Q1") %>% 
-  rbind(PD_quartile_clinical$data2 %>% mutate(quartile = "Q4")) 
-
-
-NMC_quartile_clinical_data <-  NMC_quartile_clinical$data1 %>% mutate(quartile = "Q1") %>% 
-  rbind(NMC_quartile_clinical$data2 %>% mutate(quartile = "Q4")) 
-
-
-HC_quartile_clinical_data <- HC_quartile_clinical$data1 %>% mutate(quartile = "Q1") %>% 
-  rbind(HC_quartile_clinical$data2 %>% mutate(quartile = "Q4"))
-
-HC16_quartile_clinical_data <- HC16_quartile_clinical$data1 %>% mutate(quartile = "Q1") %>% 
-  rbind(HC16_quartile_clinical$data2 %>% mutate(quartile = "Q4"))
-```
-
-
-
-```{r}
-# compute pval on different clinical variables
-PD_pval <- PD_quartile_clinical_data %>% compute_pval() %>% mutate(group = "PD")
-
-
-NMC_pval <- NMC_quartile_clinical_data %>% select(!c(pd_dur, ledd_total, appendectomy_pd_yearsdiff)) %>% 
-  compute_pval() %>% mutate(group = "NMC")
-
-HC_pval <- HC_quartile_clinical_data %>% select(!c(pd_dur, ledd_total, appendectomy_pd_yearsdiff)) %>%
-  compute_pval() %>% mutate(group = "HC")
-
-
-HC16_pval <- HC16_quartile_clinical_data %>% select(!c(pd_dur, ledd_total, appendectomy_pd_yearsdiff)) %>% 
-  compute_pval() %>% mutate(group = "HC16")
-
-# regroup all pvalue into dataframe
-df_pval <- PD_pval %>% rbind(NMC_pval) %>% rbind(HC_pval) %>% rbind(HC16_pval)
-df_pval
-```
-
-```{r, results='hide'}
-# checking - proportion CD in GBA_NMC
-test_NMC_quartile_clinical <- compute_mean_sd(NMC_quartile_CD_prop$below, NMC_quartile_CD_prop$above, temp_metadata_bis, "NMC")
-test_NMC_quartile_clinical$mean
-
-test_NMC_quartile_clinical_data <- test_NMC_quartile_clinical$data1 %>% mutate(quartile = "Q1") %>%
-  rbind(test_NMC_quartile_clinical$data2 %>% mutate(quartile = "Q4"))
-
-test_NMC_pval <- test_NMC_quartile_clinical_data %>% select(!c(pd_dur, ledd_total, appendectomy_pd_yearsdiff)) %>% compute_pval() %>% mutate(group = "NMC")
-test_NMC_pval
-
-# checking - proportion CE in GBA_NMC
-test_NMC_quartile_clinical <- compute_mean_sd(NMC_quartile_CE_prop$below, NMC_quartile_CE_prop$above, temp_metadata_bis, "NMC")
-test_NMC_quartile_clinical$mean
-
-test_NMC_quartile_clinical_data <- test_NMC_quartile_clinical$data1 %>% mutate(quartile = "Q1") %>%
-  rbind(test_NMC_quartile_clinical$data2 %>% mutate(quartile = "Q4"))
-
-test_NMC_pval <- test_NMC_quartile_clinical_data %>% select(!c(pd_dur, ledd_total, appendectomy_pd_yearsdiff)) %>% compute_pval() %>% mutate(group = "NMC")
-test_NMC_pval
-```
-
-
-
-```{r}
-# select final variable and construct the figure 
-variable_tab_select <- c("pd_dur", "ledd_total", "scopa_total", "wcs_total", "bdi_total", "updrs_i_total", "DQS_score")
-variable_tab_select_sd <- paste0(variable_tab_select, sep = "_sd")
-
-df_quartile_mean_sd_sub <- df_quartile_mean_sd %>% select(all_of(c(variable_tab_select, variable_tab_select_sd, "group", "sub")))
-```
-
-
-
-```{r}
-# extract the title for selected variables 
-variable_tab_select_description <- variable_tab_select 
-variable_tab_select <- setNames(c("PD_duration_year", "Levodopa_dose_mg", "SCOPA_total", "WCS_total", "BDI_score", "UPDRS_part_I", "DQS_score"), variable_tab_select) 
-
-variable_tab_select_description <- setNames(c("Disease duration", "Medications", "Autonomic dysfunction (SCOPA-AUT)", "Constipation (WCSS)", "Depression (BDI)", "Non-motor symptoms (MDS-UPDRS part I)", "Diet quality"), variable_tab_select_description)
-```
-
-
-```{r}
-# first construct the barplot of variable in common in all group
-variable_common <- variable_tab_select[!names(variable_tab_select) %in% c("pd_dur", "ledd_total")]
-variable_common_description <- variable_tab_select_description[!names(variable_tab_select_description) %in% c("pd_dur", "ledd_total")]
-```
-
 
 
 ```{r, fig.width=10}
@@ -694,73 +562,8 @@ for (i in 1:length(variable_common)){
 ```
 
 
-```{r}
-# appendectomy stacked barplot 
-# bind the row from two dataframe _L and _M 
-bind_quartile_df <- function(subset1, subset2, metadata, name_grp){
-  # select individuals from the quartile (subset1) 
-  subset1_data <- metadata %>%
-    filter(rownames(metadata) %in% names(subset1)) %>% 
-    mutate(sub = paste0(name_grp, "_L")) 
-  # select individuals from the quartile subset2
-  subset2_data <- metadata %>% 
-    filter(rownames(metadata) %in% names(subset2)) %>% 
-    mutate(sub = paste0(name_grp, "_M"))
-  subset_data <- subset1_data %>% rbind(subset2_data)
-  return(subset_data)
-}
-
-var_cat <- c("appendectomy", "sex", "pd_drug_naive")
-temp_metadata_chr <- temp_metadata[, var_cat]
-# temp_metadata %>% dplyr::select_if(is.character)
-
-# for each group we extract categorical variables information (appendectomy, sex) in each quartile (_L and _M)
-PD_quartile_categorical <- bind_quartile_df(PD_quartile_CD_abund$Q1, PD_quartile_CD_abund$Q4, temp_metadata_chr, "PD")
-NMC_quartile_categorical <- bind_quartile_df(NMC_quartile_CE_prop$below, NMC_quartile_CE_prop$above, temp_metadata_chr, "NMC")
-HC_quartile_categorical <- bind_quartile_df(HC_quartile_CE_prop$Q1, HC_quartile_CE_prop$Q4, temp_metadata_chr, "HC")
-HC16_quartile_categorical <- bind_quartile_df(HC16_lower, HC16_higher, temp_metadata_chr, "HC16")
-
-df_quartile_categorical <- rbind(PD_quartile_categorical, NMC_quartile_categorical, HC_quartile_categorical, HC16_quartile_categorical)
-df_quartile_categorical <- df_quartile_categorical %>% mutate(group = str_remove(sub, pattern = "_L|_M")) 
-df_quartile_categorical
-```
 
 ```{r}
-# chisq test - all categorical 
-var_cat <- c("appendectomy", "sex")
-group_chisq = c("PD", "NMC", "HC", "HC16") 
-df_chisq <- data.frame()
-for (i in 1:length(var_cat)){
-  for (j in 1:length(group_chisq)){
-    # select specific categorical variable and individual of group (PD, HC...)
-    df_select <- df_quartile_categorical %>% 
-        dplyr::select(var_cat[i], group, sub) %>% 
-        filter(group == as.character(group_chisq[j])) 
-    
-    df_select$sub <- as.character(df_select$sub)
-    
-    # build contingency table by MSP subtype and categorical variable
-    contingency_tab <- table(df_select[,c(var_cat[i], "sub")])
-    
-    # perform chi2 test and save result into df 
-    chisq <- chisq_test(contingency_tab, correct = T) %>% 
-      mutate(y = var_cat[i], 
-             group = group_chisq[j])
-    df_chisq <- df_chisq %>% rbind(chisq) 
-  } 
-}
-
-# extract chisq test for appendectomy
-df_chisq_appendectomy <- df_chisq %>% filter(y == "appendectomy")
-df_chisq_appendectomy <- df_chisq_appendectomy %>% mutate(x_position = c(1.5, 3.5, 5.5, 7.5))
-df_chisq_appendectomy <- df_chisq_appendectomy %>% mutate(y_position = rep(1.05))
-
-# add 
-# barplot + chisq test sign 
-sub_order <- unique(df_quartile_categorical$sub)
-df_quartile_categorical <- df_quartile_categorical %>% 
-  mutate(sub = factor(sub, levels = sub_order)) 
-
 bp_appendectomy <- ggplot(df_quartile_categorical, aes(x = sub, fill = appendectomy)) +
   geom_bar(stat = "count", width = 0.8, position = "fill") + 
   labs(title = "Appendectomy", x = "", y = "appendectomy proportion") + 
@@ -774,46 +577,7 @@ bp_appendectomy <- ggplot(df_quartile_categorical, aes(x = sub, fill = appendect
 bp_appendectomy
 ```
 
-```{r}
-# variable available only for PD 
-variable_tab_PD <- variable_tab_select[names(variable_tab_select) %in% c("pd_dur", "ledd_total")]
-variable_tab_PD_title <- variable_tab_select_description[names(variable_tab_select_description) %in% c("pd_dur", "ledd_total")]
-```
 
-```{r}
-# barplot of mean and sd as error bar for PD 
-PD_df_quartile <- df_quartile_mean_sd %>% filter(str_detect(rownames(df_quartile_mean_sd), ".*PD.*"))
-PD_df_quartile <- PD_df_quartile %>% mutate(sub = factor(sub, levels = rownames(PD_df_quartile)))
-# PD_pval[which(PD_pval$p.signif == "ns"), "p.signif"] <- ""
-
-bp_PD_quartile_list <- list()
-# variable_PD <- list("PD_duration_year" = "Disease duration", "Levodopa_dose_mg" = "Medications")
-for (i in 1:length(variable_tab_PD)){
-  var <- names(variable_tab_PD)[i]
-  var_sd <- paste0(var, "_sd")
-  data_p <- df_pval %>% 
-    filter(group == "PD" & y == var)
-
-  data_p$y_position <- max(PD_df_quartile[, var]) + 1 # Au-dessus des barplots
-  data_p$x_position <- c(1.5) # Milieu entre les barres
-
-  
- p <- ggplot(PD_df_quartile, aes(x = sub, y = !!sym(var), fill = group)) +
-    geom_bar(stat = "identity", width = 0.8) +  # Barre principale
-    geom_errorbar(aes(ymin = !!sym(var), ymax = !!sym(var) + !!sym(var_sd)), width = 0.1) + # Barres d'erreur
-    geom_text(data = data_p, aes(x = x_position, y = y_position, label = p.signif), size = 4) + # ajout des p-valeurs
-    scale_fill_manual(values = group_temp_fill) + 
-    labs(title = variable_tab_PD_title[[i]], x = "", y = variable_tab_PD[[i]]) + 
-    theme_pubr() +
-    theme(panel.background = element_blank(), 
-          legend.position = "none", 
-          plot.title = element_text(face = "bold", size = 14))
-          # axis.title = element_text(size = 13, color = "black"),
-          # axis.text = element_text(size = 12, color = "black"))
-  bp_PD_quartile_list[[var]] <- p
- print(p)
-}
-```
 
 
 ```{r, fig.height=4, fig.width=9}
