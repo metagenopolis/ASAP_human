@@ -482,20 +482,26 @@ get_corr_and_pval <- function(rcorr_out, abund_mat_grp){
 }
 
 
+get_subgroup_clinical <- function(subset1, subset2, metadata){
+    # extract the metadata for the 2 groups of individuals and return the 2 df as list 
+    df_subset1 <- metadata %>% filter(rownames(metadata) %in% names(subset1))
+    df_subset2 <- metadata %>% filter(rownames(metadata) %in% names(subset2))
+
+    return(list("low" = df_subset1, "high" = df_subset2)) 
+}
+
 
 # function that compute mean and standard deviation using two subset of individuals  
-compute_mean_sd <- function(subset1, subset2, metadata, name_grp){
-    # get the metadata for selected individuals and compute its mean and sd for each variable
-    subset1_data <- metadata %>% filter(rownames(metadata) %in% names(subset1))
-    subset1_mean <- apply(subset1_data, 2, function(column) round(mean(column, na.rm = T), 2))
-    subset1_sd <- apply(subset1_data, 2, function(column) round(sd(column), 1))
+compute_mean_sd <- function(df_subset1, df_subset2, name_grp){
+    # compute mean and sd for each variable in the 
+    subset1_mean <- apply(df_subset1, 2, function(column) round(mean(column, na.rm = T), 2))
+    subset1_sd <- apply(df_subset1, 2, function(column) round(sd(column), 1))
     # for checking purpose 
-    subset1_with_na <- colnames(subset1_data)[apply(subset1_data, 2, function(column) any(is.na(column)))]
+    subset1_with_na <- colnames(df_subset1)[apply(df_subset1, 2, function(column) any(is.na(column)))]
     
-    subset2_data <- metadata %>% filter(rownames(metadata) %in% names(subset2))
-    subset2_mean <- apply(subset2_data, 2, function(column) round(mean(column, na.rm = T), 2))
-    subset2_sd <- apply(subset2_data, 2, function(column) round(sd(column, na.rm = T), 1))
-    subset2_with_na <- colnames(subset2_data)[apply(subset2_data, 2, function(column) any(is.na(column)))]
+    subset2_mean <- apply(df_subset2, 2, function(column) round(mean(column, na.rm = T), 2))
+    subset2_sd <- apply(df_subset2, 2, function(column) round(sd(column, na.rm = T), 1))
+    subset2_with_na <- colnames(df_subset2)[apply(df_subset2, 2, function(column) any(is.na(column)))]
     
     # print("Subset1, NA variables : ", subset1_with_na)
     # print("Subset2, NA variables : ", subset2_with_na)
@@ -509,9 +515,32 @@ compute_mean_sd <- function(subset1, subset2, metadata, name_grp){
                         c(subset1_name, subset2_name))
     
     
-    return(list("mean" = list_mean, "sd" = list_sd,  "data1" = subset1_data, "data2" = subset2_data)) 
+    return(list("mean" = list_mean, "sd" = list_sd)) 
 }
 
+clean_dataframe <- function(x, suffix = ""){
+    # Transpose the df
+    df <- as.data.frame(t(as.data.frame(x)))
+    
+    # Replace "NaN" by NA to all columns in df 
+    df <- mutate(df, across(everything(), function(v) ifelse(is.nan(v), NA, v)))
+    
+    # Add suffix to variable names 
+    names(df) <- paste0(names(df), suffix)
+    
+    return(df)
+}  
+
+
+combine_subdata <- function(data_list, column, gp1, gp2) {
+    col_sym <- sym(column)
+    df <- bind_rows(
+        data_list$low %>% mutate(!!col_sym := gp1),
+        data_list$high %>% mutate(!!col_sym := gp2)
+    )
+    df <- df %>% mutate(!!col_sym := factor(!!col_sym, levels = c(gp1, gp2)))
+    return(df)
+}  
 
 # function that perform Student test using t_test function and 
 # adjust the symbol of significance to pvalues (different from the those of t_test)
@@ -521,10 +550,16 @@ compute_pval <- function(df, col_group = "quartile"){
     for (i in 1:(ncol(df)-1)){ 
         variable <- colnames(df)[i] 
         formula <- as.formula(paste(variable, col_group, sep = " ~ ")) 
-        mean1 <- mean(df[which(df[, col_group] == grps[1]), variable], na.rm = T) 
-        mean2 <- mean(df[which(df[, col_group] == grps[2]), variable], na.rm = T)
+        values1 <- df[which(df[, col_group] == grps[1]), variable]
+        values2 <- df[which(df[, col_group] == grps[2]), variable]
+        
+        if (all(is.na(values1)) | all(is.na(values2))) {
+            next
+        } 
+        mean1 <- mean(values1, na.rm = T) 
+        mean2 <- mean(values2, na.rm = T)
         direction <- ifelse(mean1 < mean2, "less", "greater")
-        print(direction)
+        # print(direction)
         
         res <- rstatix::t_test(data = df, formula = formula, alternative = direction, var.equal = T) 
         res <- res %>% mutate(p.signif = case_when(p < 0.0001 ~ "****",

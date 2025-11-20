@@ -528,47 +528,182 @@ length(HC16_higher)
 ```
 
 
+```{r}
+# Define list "lowhigh" storing the individuals from the lower/upper subgroups for each group 
+lowhigh <- list(
+  PD  = list(low = PD_quartile_CD_abund$Q1, high = PD_quartile_CD_abund$Q4),
+  NMC  = list(low = NMC_quartile_CE_prop$below, high = NMC_quartile_CE_prop$above),
+  HC  = list(low = HC_quartile_CE_prop$Q1, high = HC_quartile_CE_prop$Q4),
+  HC16 = list(low = HC16_lower, high = HC16_higher)
+)
+
+# For each group, create two data frames (low/high) storing individuals numeric variable values
+lowhigh_data <- lapply(lowhigh, function(data_list){
+    get_subgroup_clinical(data_list$low, data_list$high, temp_metadata_bis)
+})
+```
+
+
+```{r}
+# For each group, compute mean and sd of clinical variables in each subgroup 
+df_lowhigh_means_sd <- lapply(names(lowhigh_data), function(gp) {
+  # compute mean and sd of clinical variables for individuals in low and high subgroups 
+  data_list <- compute_mean_sd(lowhigh_data[[gp]]$low, lowhigh_data[[gp]]$high, gp)
+  
+  # now "data_list" contains two sublist (mean and sd), we convert them into df and combine them together
+  cbind(
+    clean_dataframe(data_list$mean, ""),
+    clean_dataframe(data_list$sd, "_sd")
+  )
+}) |> 
+  # finally, combine all df in a single df
+  bind_rows() 
+
+# Add group and sub columns 
+df_lowhigh_means_sd <- df_lowhigh_means_sd %>% 
+  mutate(group = c(rep(c("PD", "NMC", "HC", "HC16"), each = 2)),
+         group = factor(group, levels = c("PD", "NMC", "HC", "HC16")), 
+         sub = factor(rownames(df_lowhigh_means_sd), levels = rownames(df_lowhigh_means_sd))) 
+```
+
+
+```{r}
+# For numeric clinical variables in each group, compute Student test pval 
+df_lowhigh_pvals <- lapply(names(lowhigh_data), function(g) {
+  # Bind the clinical variable values of each subgroup individuals (low/high) together, for each group (PD/NMC/HC/HC16)
+  df <- combine_subdata(lowhigh_data[[g]], "subgroup", "low", "high") %>% 
+    # perform Student test between subgroups (low vs high)
+    compute_pval(col_group = "subgroup") %>% 
+    mutate(group = g)
+  return(df)
+  # Bind all test results in a single df 
+}) |> bind_rows() 
+```
+
+
+```{r}
+# Select numeric variables of interest for the construction of the figure 
+var_plot <- setNames( c("PD_duration_year", "Levodopa_dose_mg", "SCOPA_total", "WCS_total", "BDI_score", "UPDRS_part_I", "DQS_score"), 
+                      c("pd_dur", "ledd_total", "scopa_total", "wcs_total", "bdi_total", "updrs_i_total", "DQS_score"))
+
+var_plot_description <- setNames(c("Disease duration", "Medications", "Autonomic dysfunction (SCOPA-AUT)", "Constipation (WCSS)", "Depression (BDI)", "Non-motor symptoms (MDS-UPDRS part I)", "Diet quality"), names(var_plot))
+```
+
+
 ```{r, fig.width=10}
-# BARPLOT FOR VARIABLE IN COMMON
+# BARPLOT FOR NUMERIC VARIABLES
 group_temp_fill <- c(HC = "#009E73", NMC =  "#F0E442", PD ="#CC79A7", HC16 =  "#009E73")
 
-# barplot of mean and sd as bars errors for variables that are common in group
-bp_quartile_list <- list()
-for (i in 1:length(variable_common)){
-  var <- names(variable_common)[i]
+# For each numeric variables, construct barplot of mean with error bar showing ± SD (standard deviation)
+bp_lowhigh_list <- list()
+for (i in 1:length(var_plot)){
+  var <- names(var_plot)[i]
   print(var)
   var_sd <- paste0(var, "_sd")
-  data_p <- df_pval %>% filter(y == var)
+  data_p <- df_lowhigh_pvals %>% filter(y == var)
   
-  data_p$x_position <- c(1.5, 3.5, 5.5, 7.5) # Milieu entre les barres
-  data_p$y_position <- tapply(df_quartile_mean_sd_sub[, var], df_quartile_mean_sd_sub$group, max) + 0.8 # Au-dessus des barplots
+  # Variables only available for PD individuals 
+  if (var %in% c("pd_dur", "ledd_total")) {
+    df_PD <- df_lowhigh_means_sd %>% 
+      filter(group == "PD") %>% 
+      select(c(sym(var), sym(var_sd), group, sub))
+    
+    # Define x, y positions of stars (when the test is significant)
+    data_p$x_position <- c(1.5) # in the middle, between bars
+    data_p$y_position <- max(df_PD[, var]) + 1 # above the bars
+    df_to_plot <- df_PD
   
- p <- ggplot(df_quartile_mean_sd_sub, aes(x = sub, y = !!sym(var), fill = group)) +
-    geom_bar(stat = "identity", width = 0.8) +  # Barre principale
-    # geom_errorbar(aes(ymin = !!sym(var) - !!sym(var_sd), ymax = !!sym(var) + !!sym(var_sd)), width = 0.1) + # Barres d'erreur
-    geom_errorbar(aes(ymin = !!sym(var), ymax = !!sym(var) + !!sym(var_sd)), width = 0.1) + # Barres d'erreur
-    geom_text(data = data_p, aes(x = x_position, y = y_position, label = p.signif), size = 4) + # ajout des p-valeurs
+  # Variables available for all groups 
+  } else {
+    data_p$x_position <- c(1.5, 3.5, 5.5, 7.5) 
+    data_p$y_position <- tapply(df_lowhigh_means_sd[, var], df_lowhigh_means_sd$group, max) + 0.8 
+    df_to_plot <- df_lowhigh_means_sd
+  } 
+  # Barplot of mean values with error bars showing ± SD (standard deviation)
+  p <- ggplot(df_to_plot, aes(x = sub, y = !!sym(var), fill = group)) +
+    geom_bar(stat = "identity", width = 0.8) +  # barplot
+    geom_errorbar(aes(ymin = !!sym(var), ymax = !!sym(var) + !!sym(var_sd)), width = 0.1) + # add error bars 
+    geom_text(data = data_p, aes(x = x_position, y = y_position, label = p.signif), size = 4) + # add stars 
     scale_fill_manual(values = group_temp_fill) + 
-    labs(title = variable_common_description[[i]], x = "", y = variable_common[[i]]) + 
+    labs(title = var_plot_description[[i]], x = "", y = var_plot[[i]]) + 
     theme_pubr() +
     theme(panel.background = element_blank(), 
           legend.position = "none", 
           plot.title = element_text(face = "bold", size = 14))
-          # axis.title = element_text(size = 13, color = "black"),
-          # axis.text = element_text(size = 12, color = "black"))
-  bp_quartile_list[[var]] <- p
+  bp_lowhigh_list[[var]] <- p
  print(p)
 } 
 ```
 
 
+```{r}
+# Select categorical variables
+var_cat <- c("appendectomy", "sex")
+temp_metadata_chr <- temp_metadata[, var_cat]
+
+# For each group, create one dataframe storing individuals categorical variable values
+lowhigh_subdata_chr <- lapply(names(lowhigh), function(gp) {
+  # For each subgroup (low/high), select the categorical variables columns 
+  list_two_df <- get_subgroup_clinical(lowhigh[[gp]]$low, lowhigh[[gp]]$high, temp_metadata_chr)
+  
+  # For each group, combine the two df in one 
+  df <- combine_subdata(list_two_df, "subgroup", "low", "high") 
+  df %>% mutate(sample_ID = rownames(df), 
+                group = gp, 
+                sub = ifelse(subgroup == "low", paste0(gp, "_L"), paste0(gp, "_M"))) 
+}) 
+names(lowhigh_subdata_chr) <- names(lowhigh)
+
+# Bind all df in a single df 
+df_lowhigh_subdata_chr <- bind_rows(lowhigh_subdata_chr) %>% 
+   mutate(sub = factor(sub, levels = unique(sub))) 
+rownames(df_lowhigh_subdata_chr) <- NULL
+```
+
 
 ```{r}
-bp_appendectomy <- ggplot(df_quartile_categorical, aes(x = sub, fill = appendectomy)) +
+# For each group, perform a Chi2 test between individuals from the least/most altered microbiome subgroup and store result in df 
+df_lowhigh_pvals_chr <- lapply(lowhigh_subdata_chr, function(g){ 
+  df_chisq <- data.frame()
+  for (var in var_cat){
+    # select the categorical variable and the sub columns 
+    df_select <- g %>% select(sym(var), sub)
+    
+    # build contingency table
+    contingency_tab <- table(df_select)
+    
+    # perform Chi2 test between low/high subgroups and save result into df 
+    chisq <- chisq_test(contingency_tab, correct = T) %>% 
+      mutate(y = var, 
+             group = unique(str_remove(df_select$sub, pattern = "_L|_M"))) 
+    
+    df_chisq <- df_chisq %>% 
+      rbind(chisq)
+  } 
+  return(df_chisq)
+}) |> 
+  # Bind all df in a single df 
+  bind_rows() |> 
+  arrange(y)
+
+# Define x, y positions for pval symbol for each variable 
+df_lowhigh_pvals_chr <- df_lowhigh_pvals_chr %>% 
+  group_by(y) %>% 
+  mutate(x_position = c(1.5, 3.5, 5.5, 7.5), 
+         y_position = rep(1.05))
+
+# Extract Chi2 pval for appendectomy
+df_lowhigh_pvals_appendectomy <- df_lowhigh_pvals_chr %>% 
+  filter(y == "appendectomy")
+
+# Construct stacked barplot for appendectomy variable  
+bp_appendectomy <- ggplot(df_lowhigh_subdata_chr, aes(x = sub, fill = appendectomy)) +
   geom_bar(stat = "count", width = 0.8, position = "fill") + 
   labs(title = "Appendectomy", x = "", y = "appendectomy proportion") + 
-  # geom_text(aes(df_chisq_appendectomy$p.signif)) + 
-  annotate("text", x = df_chisq_appendectomy$x_position, y = df_chisq_appendectomy$y_position, label = df_chisq_appendectomy$p.signif, size = 4) + # ajout des p-valeurs
+  annotate("text", 
+           x = df_lowhigh_pvals_appendectomy$x_position, 
+           y = df_lowhigh_pvals_appendectomy$y_position, 
+           label = df_lowhigh_pvals_appendectomy$p.signif, size = 4) + 
   scale_fill_manual(values = c("yes" = "#000000", "no" = "#999999")) + 
   theme_pubr() + 
   theme(legend.position = "none",
@@ -579,32 +714,30 @@ bp_appendectomy
 
 
 
-
 ```{r, fig.height=4, fig.width=9}
-fig_tab_top <- ggarrange(bp_PD_quartile_list$pd_dur, 
-                         bp_PD_quartile_list$ledd_total, 
+fig_tab_top <- ggarrange(bp_lowhigh_list$pd_dur, 
+                         bp_lowhigh_list$ledd_total, 
                          nrow = 1, labels = c("A"), font.label = list(size = 17))
 fig_tab_top
 ```
 
 ```{r, fig.height=8, fig.width=15}
-fig_tab_mid <- ggarrange(bp_quartile_list$scopa_total, 
-                         bp_quartile_list$wcs_total, 
-                         bp_quartile_list$bdi_total, 
-                         bp_quartile_list$updrs_i_total, 
+fig_tab_mid <- ggarrange(bp_lowhigh_list$scopa_total, 
+                         bp_lowhigh_list$wcs_total, 
+                         bp_lowhigh_list$bdi_total, 
+                         bp_lowhigh_list$updrs_i_total, 
                          nrow = 2, ncol = 2, labels = c("B"),  font.label = list(size = 17, color = "black"))
 fig_tab_mid
 ```
 
 
 ```{r, fig.height=4, fig.width=14}
-fig_tab_bottom <- ggarrange(bp_quartile_list$DQS_score, 
+fig_tab_bottom <- ggarrange(bp_lowhigh_list$DQS_score, 
                             bp_appendectomy, 
                             nrow = 1, labels = c("C"), font.label = list(size = 17))
 
 fig_tab_bottom
 ```
-
 
 
 ```{r, fig.height=12, fig.width=14, fig.show='asis'}
