@@ -277,28 +277,6 @@ compute_ttest <- function(list1, list2, grp, grp_label){
     return(res_test)
 }
 
-# FUNCTIONS QUARTILES
-# function that sort proportion/abundance in ascending way for enriched subtype specie
-# in descending way for depleted subtype specie and split into quartile for PD
-get_quartile_PD <- function(data_list, msp_subgroup = "E"){
-    # ascending sort of PD individuals according to the proportion/abundance of enriched MSP 
-    if (msp_subgroup == "E"){
-        sorted <- sort(data_list)
-    }
-    if (msp_subgroup == "D"){
-        sorted <- sort(data_list, decreasing = T)
-    }
-    Q1 <- sorted[1:68]
-    Q2 <- sorted[69:136]
-    Q3 <- sorted[137:203]
-    Q4 <- sorted[204:271]
-    
-    quartile <- list(Q1, Q2, Q3, Q4)
-    names(quartile) <- c("Q1", "Q2", "Q3", "Q4")
-    return(quartile)
-}
-
-
 
 get_median <- function(data_list, msp_subgroup = "E"){
     n <- length(data_list)
@@ -369,26 +347,11 @@ get_tercile <- function(data_list, msp_subgroup = "E"){
     split(sorted, tercile)
 }
 
-# function that sort proportion/abundance in ascending way for enriched subtype specie
-# in descending way for depleted subtype specie and split into quartile for HC
-get_quartile_HC <- function(data_list, msp_subgroup = "E"){
-    # ascending sort of HC individuals according to the proportion/abundance of enriched MSP 
-    if (msp_subgroup == "E"){
-        sorted <- sort(data_list)
-    }
-    if (msp_subgroup == "D"){
-        sorted <- sort(data_list, decreasing = T)
-    }
-    Q1 <- sorted[1:38]
-    Q2 <- sorted[39:75]
-    Q3 <- sorted[76:112]
-    Q4 <- sorted[113:150]
-    
-    quartile <- list(Q1, Q2, Q3, Q4)
-    names(quartile) <- c("Q1", "Q2", "Q3", "Q4")
-    return(quartile)
-}
-
+#' Function that sort abundance/proportion in ascending way for enriched subtype specie, in descending way for depleted subtype species and split into subgroups with same size. 
+#' @param data_list A named vector containing the abundance or proportion values of individuals
+#' @param msp_subgroup A character that indicate to sort values in ascending way (E, by default) or descending way (D) 
+#' @return Returns a list of individuals spitted into 4 quartile subgroups 
+#' @details When the number of individuals cannot be homogeneous for all groups : priority give to Q1/Q4 before Q2/Q3
 get_quartile <- function(data_list, msp_subgroup = "E"){
     # Ascending sort of values if enriched MSP, descending sort if depleted MSP 
     if (msp_subgroup == "E"){
