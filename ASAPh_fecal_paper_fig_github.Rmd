@@ -541,6 +541,34 @@ lowhigh <- list(
 lowhigh_data <- lapply(lowhigh, function(data_list){
     get_subgroup_clinical(data_list$low, data_list$high, temp_metadata_bis)
 })
+
+
+# From each list (group), bind sublist (subgroup) into one df storing individuals variable values   
+sub_list <- c("low", "high")
+group_list <- c("PD", "NMC", "HC", "HC16")
+
+df_lowhigh_raw <- lowhigh_data %>%
+  imap_dfr(function(sub_list, group_list) {
+    # sub_list = liste contenant low et high
+    # group_list = "grp1", "grp2", etc.
+    
+    imap_dfr(sub_list, function(df, sub_grp) {
+      df %>%
+        mutate(
+          group = group_list,
+          sub = sub_grp
+        )
+    })
+  }) %>%
+  pivot_longer(
+    cols = -c("sub", "group"), 
+    names_to = "variable",
+    values_to = "value"
+  ) %>% 
+  mutate(
+    sub_temp = ifelse(sub == "low", "_L", "_M"),
+    sub_name = paste0(group, sub_temp)
+  )
 ```
 
 
@@ -592,6 +620,7 @@ var_plot_description <- setNames(c("Disease duration", "Medications", "Autonomic
 
 ```{r, fig.width=10}
 # BARPLOT FOR NUMERIC VARIABLES
+set.seed(123)
 group_temp_fill <- c(HC = "#009E73", NMC =  "#F0E442", PD ="#CC79A7", HC16 =  "#009E73")
 
 # For each numeric variables, construct barplot of mean with error bar showing ± SD (standard deviation)
@@ -612,18 +641,30 @@ for (i in 1:length(var_plot)){
     data_p$x_position <- c(1.5) # in the middle, between bars
     data_p$y_position <- max(df_PD[, var]) + 1 # above the bars
     df_to_plot <- df_PD
+    
+    # Substract observations to plot 
+    df_raw <- df_lowhigh_raw %>% 
+      filter(group == "PD") %>% 
+      filter(variable == sym(var))
   
   # Variables available for all groups 
   } else {
     data_p$x_position <- c(1.5, 3.5, 5.5, 7.5) 
     data_p$y_position <- tapply(df_lowhigh_means_sd[, var], df_lowhigh_means_sd$group, max) + 0.8 
     df_to_plot <- df_lowhigh_means_sd
+    
+    # Substract observations to plot 
+    df_raw <- df_lowhigh_raw %>% 
+      filter(variable == sym(var))
   } 
   # Barplot of mean values with error bars showing ± SD (standard deviation)
   p <- ggplot(df_to_plot, aes(x = sub, y = !!sym(var), fill = group)) +
     geom_bar(stat = "identity", width = 0.8) +  # barplot
     geom_errorbar(aes(ymin = !!sym(var), ymax = !!sym(var) + !!sym(var_sd)), width = 0.1) + # add error bars 
     geom_text(data = data_p, aes(x = x_position, y = y_position, label = p.signif), size = 4) + # add stars 
+    geom_jitter(data = df_raw,
+                aes(x = sub_name, y = value, fill = group),
+                shape = 21, width = 0.15, alpha = 0.7, size = 2, color = "black") +  # add data points 
     scale_fill_manual(values = group_temp_fill) + 
     labs(title = var_plot_description[[i]], x = "", y = var_plot[[i]]) + 
     theme_pubr() +
@@ -1999,10 +2040,10 @@ NMC_coh <- list(
   CD_prop = list(data = grp_CD_prop$GBA_NMC, type = "D")
 )
 
-# Apply "get_median" function to each vectors from "NMC_coherent"
+# Apply "get_median" function to each vectors from "NMC_coh"
 # The function sort abundances/proportions in ascending way when it's enriched specie type and in decreasing way when it's depleted specie type  
 # Then it split into median groups and compute mean of abundance/proportion for each median groups  
-median_NMC_coh <- lapply(NMC_coherent, function(g){ get_median(g$data, g$type)}) 
+median_NMC_coh <- lapply(NMC_coh, function(g){ get_median(g$data, g$type)}) 
 
 
 # List of dataframe of that contains the mean abundances/proportions of each subgroup for each subtype specie 
@@ -2450,7 +2491,7 @@ grid.text("A",
 # CORRELATIONS CLINICAL VS MSP in groups
 
 # list of variable for PD
-select_clinic_var <- c("moca_total", "upsit_total", "DQS_score", "updrs_i_total", "updrs_ii_total", "updrs_iii_total", "updrs_total", "scopa_cardiovascular", "scopa_gastrointestinal", "scopa_pupillomotor", "scopa_sexual", "scopa_thermoregulatory", "scopa_urinary", "scopa_total", "rbdsq_total", "bdi_total", "hads_anxiety_total", "hads_depression_total", "wcs_total", "ledd_total", "pd_dur", "age", "bmi", "hoehn_yahr")
+select_clinic_var <- c("moca_total", "upsit_total", "DQS_score", "updrs_i_total", "updrs_ii_total", "updrs_iii_total", "updrs_iv_total", "updrs_total", "scopa_cardiovascular", "scopa_gastrointestinal", "scopa_pupillomotor", "scopa_sexual", "scopa_thermoregulatory", "scopa_urinary", "scopa_total", "rbdsq_total", "bdi_total", "hads_anxiety_total", "hads_depression_total", "wcs_total", "ledd_total", "pd_dur", "age", "bmi", "hoehn_yahr")
 
 # variable selection for GBA_NMC and HC 
 select_clinic_var_bis <- select_clinic_var[!select_clinic_var %in% c("ledd_total", "pd_dur", "hoehn_yahr")] # keep age and bmi
@@ -2747,6 +2788,9 @@ for (df in c("res_PD_HC", "res_GBA_NMC_HC")){
 }
 df_cliff <- cbind(cliff_GBA_NMC_HC, cliff_PD_HC)
 df_cliff$HC.PD_Cliffdelta <- df_cliff$HC.PD_Cliffdelta * -1
+
+# Student test
+t.test(df_cliff$HC.PD_Cliffdelta, df_cliff$GBA_NMC.HC_Cliffdelta, alternative = "greater")
 ```
 
 
