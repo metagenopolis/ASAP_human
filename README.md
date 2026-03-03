@@ -8,11 +8,13 @@ This repository contains the scripts used to produce clinical and the microbiome
 
 ### For clinical data
 
--   ASAP_Clinical_Microbiome_NatureMed.Rmd : script containing the analysis perform on clinical data
+-   ASAP_SCHAPIRA_Clinical_Microbiome_NatureMed_2026_Clinical_code.Rmd : script containing the analysis perform on clinical data
+
+-   ASAP_SCHAPIRA_Codebook_Clinical_Dataset : file containing the definition of the clinical variables used in the study
 
 ### For microbiome data
 
--   meteor_commands.txt : Meteo2 software commands to perform taxonomy and functional profiling both on gut and oral catalogs
+-   meteor_commands.txt : Meteor2 software commands to perform taxonomy and functional profiling both on gut and oral catalogs
 
 -   merge_gut_oral.R : script containing the commands to merge gut and oral abundance tables
 
