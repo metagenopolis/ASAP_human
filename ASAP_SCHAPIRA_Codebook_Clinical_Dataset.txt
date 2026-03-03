@@ -1,0 +1,306 @@
+Microbiome signature of Parkinson’s disease in healthy and genetically at-risk individuals
+
+This codebook contains the definition of the clinical variables used in the manuscript "Microbiome signature of Parkinson’s disease in healthy and genetically at-risk individuals” and presented in the UCL Research Data Repository at the link: https://doi.org/10.5522/04/30710741.
+
+List of clinical variables and their description
+
+clinical_ID
+Unique, anonymous ID related to the participant
+
+MGP_ID_fecal_baseline
+Unique, anonymous ID related to the participant's faecal sample
+
+cohort
+Individual belonging cohort [ITA = Italy; GBR: Great Britain (UK)] 
+
+age
+Age [years]
+
+sex
+Sex [Female/Male]
+
+partner_updated
+Participation with a partner in the study [yes/no]
+
+blood_related_updated
+Participation with a family member in the study [yes/no]
+
+bmi
+Body Mass Index [kg/m2]
+
+group
+Belonging group, x4 levels [GBA-NMC, GBA1 non manifesting carrier; GBA-PD, GBA1 Parkinson’s disease; HC, healthy control; sPD, sporadic/idiopathic Parkinson’s disease]
+
+three_group
+Belonging group, x3 levels, gathering GBA-PD and sPD together [GBA-NMC, GBA1 non manifesting carrier; HC, healthy control; PD, Parkinson’s disease]
+
+ed_yrs
+Years of education [yrs]
+
+fhx
+Positive family history for Parkinson’s disease, x3 levels [no, negative family history; yes_first, first-degree relative member; yes_second, second-degree relative member]
+
+fhx2
+Positive family history for Parkinson’s disease, x2 levels, gathering first- and second-degree relative member together [no, negative family history; yes, positive family history, either first- or second-degree relative member]
+
+pd_criteria
+PD diagnostic criteria according to the UK Biobank criteria or the 2015 MDS Parkinson's disease Clinical Criteria [yes/no]
+
+tbi
+Traumatic brain injury [yes/no]
+
+appendectomy
+Appendectomy [yes/no]
+
+appendectomy_ageatsurgery
+Appendectomy age at surgery
+
+appendectomy_pd_yearsdiff
+Years of difference between appendectomy and Parkinson’s disease onset [years]
+
+coffee
+Coffee consumption [yes/no]
+
+coffee_amount				
+Amount of coffee consumption [less_than_one_cup, less than 1 cup; one_small_cup, 1 small cup; one_medium_cup, 1 medium cup; one_big_cup, 1 big cup; more_one_big_cup, more than 1 big cup]
+
+smoking
+Smoking habit [yes/no]
+
+smoking_current_duration
+Duration of smoking for current smokers [years]
+
+smoking_ex_duration
+Duration of smoking for ex-smokers [years]
+
+smoking_packs
+Number of smoked packs of cigarettes
+
+updrs_i_total
+MDS-UPDRS part I score
+
+updrs_ii_total
+MDS-UPDRS part II score
+
+hoehn_yahr
+H & Y stage
+
+updrs_iii_total
+MDS-UPDRS part III score
+
+updrs_iv_total
+MDS-UPDRS part IV score
+
+updrs_total
+MDS-UPDRS total score
+
+moca_raw_total
+MOCA raw score (without adjustment for years of education)
+
+education_n_years
+Number of years in education collected during MOCA questionnaire 
+
+moca_total
+MOCA score adjusted for years of education (to adjust MOCA score, the variable "ed_yrs" was used)
+
+scopa_total
+SCOPA-AUT total score
+
+scopa_gastrointestinal
+SCOPA Gastrointestinal score
+
+scopa_urinary
+SCOPA Urinary score
+
+scopa_cardiovascular
+SCOPA Cardiovascular score
+
+scopa_thermoregulatory
+SCOPA Thermoregulatory score
+
+scopa_pupillomotor
+SCOPA Pupillomotor score
+
+scopa_sexual
+SCOPA Sexual score
+
+hads_depression_total
+HADS depression score
+
+hads_anxiety_total
+HADS anxiety score
+
+rbdsq_total
+RBDSQ (raw score)
+
+bdi_total
+Beck Depression Inventory score
+
+upsit_total
+UPSIT score
+
+wcs_total
+Wexner Constipation Scoring System score
+
+seborr_dermatitis
+Seborrheic dermatitis [yes/no]
+
+seborr_dermatitis_ageonset
+Age at onset of seborrheic dermatitis [years]
+
+seborr_dermatitis_pd_datediff
+Years of difference between seborrheic dermatitis onset and Parkinson’s disease onset [years]
+
+pd_dbs	
+Deep brain stimulation [yes/no]
+
+pd_dbs_years
+Time between deep brain stimulation surgery and clinical evaluation [years]
+
+pd_dbs_target
+Deep brain stimulation target
+
+pd_lcig
+Levodopa carbidopa intestinal gel [yes/no]
+
+pd_apomorphine
+Apomorphine pump [yes/no]
+
+pd_onset_calculated
+Parkinson’s disease age of onset [years]
+
+pd
+Parkinson’s disease diagnosis [yes/no]
+
+pd_dur
+Parkinson’s disease duration [years]
+
+pd_drug_naive
+Drug naïve Parkinson's disease participant [yes/no]
+
+ledd_total
+Levodopa equivalent daily dose [mgs]
+
+diet
+Diet type
+
+fruit_portion
+Portions of fruit eaten per day [None; 1 portion; 2 portions; 3 portions; 4 portions; 5 portions; More than 5 portions]
+
+vegetables_portion
+Portions of vegetables eaten per day [None; 1 portion; 2 portions; 3 portions; 4 portions; 5 portions; More than 5 portions]
+
+milk
+Milk consumption [Whole/full-fat milk; Semi-skimmed milk; Skimmed milk; Rarely/never use milk; Others]
+
+alcohol_intake
+Alcohol intake [I rarely/never drink alcohol; Less than 14 units; Between 14 and 21 units; More than 21 units]
+
+smoking_pd_biome
+Smoking status (information collected through self-administered survey) [A current smoker; An ex-smoker; I have never smoked more than 100 cigarettes]
+
+physical_activity
+Physical activity [No activity; Less that 1 hour/week; 1-2 hours/week; 2-4 hours/week; More that 4 hours/week]
+
+physical_activity_threshold
+Physical activity defined using threshold of 150 minutes of moderate-intensity physical activity/week recommended for adults in the UK [active if 2-4 hours/week OR More that 4 hours/week; not active if No activity OR Less that 1 hour/week OR 1-2 hours/week]
+
+out_breath_stairs
+Out of breath when walking 3 levels of stairs [yes/no]
+
+Fruit
+Fruit intake calculated through Dietary quality score calculator
+
+Vegetables
+Vegetables intake calculated through Dietary quality score calculator
+
+Oily_Fish
+Oily fish intake calculated through Dietary quality score calculator
+
+Fat
+Fat intake calculated through Dietary quality score calculator
+
+NMES
+Non-milk extrinsic sugars intake calculated through Dietary quality score calculator
+
+DQS_score
+Dietary quality score 
+
+hads_depression_range
+Range of depression according to HADS Depression Scale
+
+hads_anxiety_range
+Range of anxiety according to HADS Anxiety Scale
+
+bdi_range
+Range of depression according to BDI Scale
+
+rbd_affected_diff
+RBD affected according to RBDSQ score
+
+upsit_range
+Range of olfactory dysfunction according to UPSIT Scale
+
+wcs_threshold
+Constipation according to WCS threshold
+
+moca_range
+Cognition dysfunction according to MOCA score (abnormal/cognitive impairment defined as a MOCA score <26/30)
+
+subthr_park
+Subthreshold parkinsonism calculated according to MDS prodromal criteria  
+
+subthr_park_threshold
+Subthreshold parkinsonism defined is score > 6 according to MDS prodromal criteria  
+
+sleepiness
+Sleepiness score (Question 1.8 MDS-UPDRS part I)
+
+sleepiness_prodromal_criteria
+Sleepiness defined is score > or = 3
+
+urinary_dysfunction
+Urinary dysfunction (Question 1.10 MDS-UPDRS part I)
+
+urinary_dysfunction_prodromal_criteria
+Urinary dysfunction defined is score > or = 2
+
+erectyle_dysfunction
+Erectile dysfunction (Question 22 SCOPA-AUT)
+
+erectyle_dysfunction_prodromal_criteria
+Erectile dysfunction defined is score > or = 3
+
+physical_activity_threshold_prodromal_criteria
+Physical inactivity defined if less than 1 hour a week
+
+t2_diabetes
+Presence of diabete mellitus type 2 according to medical history
+
+prior_probability
+Prior probability calculated according to MDS prodromal criteria  
+
+risk_markers
+Risk markers calculated according to MDS prodromal criteria  
+
+prodromal_markers
+Prodromal markers calculated according to MDS prodromal criteria  
+
+clinical_nonmotor_markers
+Clinical non-motor markers calculated according to MDS prodromal criteria  
+
+clinical_motor_markers
+Clinical motor markers calculated according to MDS prodromal criteria  
+
+lr_threshold
+Total Likelihood Ratio Threshold Required for Probable Prodromal PD calculated according to MDS prodromal criteria  
+
+estimated_lr
+Total Estimated Likelihood Ratio calculated according to MDS prodromal criteria  
+
+estimated_probability
+Estimated Probability (%) calculated according to MDS prodromal criteria  
+
+prob_prodromalPD
+Probable Prodromal PD calculated according to MDS prodromal criteria  
+

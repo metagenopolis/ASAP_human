@@ -1,0 +1,1384 @@
+---
+title: "ASAP Clinical Microbiome: 540 individuals - Nature Medicine 2026"
+output:
+  word_document:
+    toc: true
+    toc_depth: '3'
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# File import, filter for patients to exclude
+```{r}
+library(reshape2)
+library(ggplot2)
+library(dplyr)
+library(car)
+library(tidyr)
+library(ggpubr)
+library(nycflights13)
+library(DT)
+library(forcats)
+library(ggtext)
+library(datawizard)
+library(PMCMRplus)
+library(fabricatr)
+library(rstatix)
+library(Hmisc)
+library(factoextra)
+library(devtools)
+library(RColorBrewer)
+library(broom)
+library(emmeans)
+library(questionr)
+library(MASS)
+```
+
+```{r}
+#Load metadata file
+metadata_540ind <- read.csv("/.../ASAP_SCHAPIRA_clinical_dataset_540ind_2026_v2.csv", sep=",", dec = '.', stringsAsFactors = FALSE, header = TRUE)
+
+dim(metadata_540ind)
+```
+
+# COHORT
+```{r}
+metadata_540ind = metadata_540ind %>% reorder_levels(three_groups, order = c("HC", "GBA_NMC", "PD"))
+
+table(metadata_540ind$group)
+table(metadata_540ind$three_groups)
+table(metadata_540ind$cohort, metadata_540ind$three_groups)
+
+metadata_540ind$three_groups = as.character(metadata_540ind$three_groups)
+```
+
+# SUBSETS
+```{r}
+# Create subset of data for comparison HC vs GBA-NMC
+metadata_nmc_hc = filter(metadata_540ind, three_groups == "GBA_NMC" | three_groups == "HC")
+dim(metadata_nmc_hc)
+table(metadata_nmc_hc$three_groups)
+```
+
+
+```{r}
+# Create subset of data for comparison GBA-NMC vs PD
+metadata_nmc_pd = filter(metadata_540ind, three_groups == "GBA_NMC" | three_groups == "PD")
+dim(metadata_nmc_pd)
+table(metadata_nmc_pd$three_groups)
+```
+
+
+```{r}
+# Create subset of data for comparison GBA-PD vs idiopathic PD
+onlyPD = filter(metadata_540ind, three_groups == "PD")
+dim(onlyPD)
+table(onlyPD$group)
+```
+
+
+```{r}
+# Create subset of data with HC and PD
+metadata_hc_pd = filter(metadata_540ind, three_groups == "HC" | three_groups == "PD")
+dim(metadata_hc_pd)
+table(metadata_hc_pd$three_groups)
+```
+
+# RESULTS SUMMARY
+
+```{r}
+metadata_540ind = metadata_540ind %>% reorder_levels(three_groups, order = c("HC", "GBA_NMC", "PD"))
+
+table_summ_540ind <- group_by(metadata_540ind, "group"=three_groups) %>% 
+  summarise(
+
+    mean_age = round(mean(age, na.rm=T),1), sd_age = round(sd(age, na.rm=T), 1),
+    
+    mean_bmi = round(mean(bmi, na.rm=T),1), sd_bmi = round(sd(bmi, na.rm=T), 1),
+            
+    mean_pd_onset = round(mean(pd_onset_calculated, na.rm=T),1), sd_pd_onset = round(sd(pd_onset_calculated, na.rm=T), 1),
+            
+    mean_pd_dur = round(mean(pd_dur, na.rm=T),1), sd_pd_dur = round(sd(pd_dur, na.rm=T), 1),
+            
+    mean_hy = round(median(hoehn_yahr, na.rm=T),1), sd_hy = round(sd(hoehn_yahr, na.rm=T), 1),
+            
+    mean_ledd = round(mean(ledd_total, na.rm=T),1), sd_ledd = round(sd(ledd_total, na.rm=T), 1),
+            
+    mean_updrs_i = round(mean(updrs_i_total, na.rm=T),1), sd_updrs_i = round(sd(updrs_i_total, na.rm=T), 1),
+            
+    mean_updrs_ii_total = round(mean(updrs_ii_total, na.rm=T),1), sd_updrs_ii_total = round(sd(updrs_ii_total, na.rm=T), 1),
+            
+    mean_updrs_iii_total = round(mean(updrs_iii_total, na.rm=T),1), sd_updrs_iii_total = round(sd(updrs_iii_total, na.rm=T), 1),
+            
+    mean_updrs_iv_total = round(mean(updrs_iv_total, na.rm=T),1), sd_updrs_iv_total = round(sd(updrs_iv_total, na.rm=T), 1),
+            
+    mean_updrs_total = round(mean(updrs_total, na.rm=T),1), sd_updrs_total = round(sd(updrs_total, na.rm=T), 1),
+             
+    mean_scopa_total = round(mean(scopa_total, na.rm=T),1), sd_scopa_total = round(sd(scopa_total, na.rm=T), 1),
+  
+       
+    mean_scopa_gastrointestinal = round(mean(scopa_gastrointestinal, na.rm=T),1), sd_scopa_gastrointestinal = round(sd(scopa_gastrointestinal, na.rm=T), 1),
+       
+    mean_scopa_urinary = round(mean(scopa_urinary, na.rm=T),1), sd_scopa_urinary = round(sd(scopa_urinary, na.rm=T), 1),
+       
+    mean_scopa_cardiovascular = round(mean(scopa_cardiovascular, na.rm=T),1), sd_scopa_cardiovascular = round(sd(scopa_cardiovascular, na.rm=T), 1),
+       
+    mean_scopa_thermoregulatory = round(mean(scopa_thermoregulatory, na.rm=T),1), sd_scopa_thermoregulatory = round(sd(scopa_thermoregulatory, na.rm=T), 1),
+       
+    mean_scopa_pupillomotor = round(mean(scopa_pupillomotor, na.rm=T),1), sd_scopa_pupillomotor = round(sd(scopa_pupillomotor, na.rm=T), 1),
+    
+    mean_scopa_sexual = round(mean(scopa_sexual, na.rm=T),1), sd_scopa_sexual = round(sd(scopa_sexual, na.rm=T), 1),
+    
+    mean_wcs_total = round(mean(wcs_total, na.rm=T),1), sd_wcs_total = round(sd(wcs_total, na.rm=T), 1),
+    
+    mean_rbdsq_total = round(mean(rbdsq_total, na.rm=T),1), sd_rbdsq_total = round(sd(rbdsq_total, na.rm=T), 1),
+    
+    mean_upsit_total = round(mean(upsit_total, na.rm=T),1), sd_upsit_total = round(sd(upsit_total, na.rm=T), 1),
+    
+    mean_hads_anxiety_total = round(mean(hads_anxiety_total, na.rm=T),1), sd_hads_anxiety_total = round(sd(hads_anxiety_total, na.rm=T), 1),
+    
+    mean_hads_depression_total = round(mean(hads_depression_total, na.rm=T),1), sd_hads_depression_total = round(sd(hads_depression_total, na.rm=T), 1),
+    
+    mean_bdi_total = round(mean(bdi_total, na.rm=T),1), sd_bdi_total = round(sd(bdi_total, na.rm=T), 1),
+    
+    mean_moca_total = round(mean(moca_total, na.rm=T),1), sd_moca_total = round(sd(moca_total, na.rm=T), 1)
+            )
+
+glimpse(table_summ_540ind)
+
+writexl::write_xlsx(table_summ_540ind, "/Users/elisamenozzi/Library/CloudStorage/OneDrive-Personal/Documents/PhD Literature/Upgrade/ASAP MEATADATA/baseline_cohort/final_documents/metadata_full_cohort/clinical_metadata/00_complete_metadata/Metadata_file_final/table_summ_540ind.xlsx")
+```
+
+
+# DEMOGRAPHICS
+```{r}
+# Analyses are performed separately for HC vs GBA-NMC, and GBA-NMC vs PD 
+```
+
+## AGE
+```{r}
+#stats
+tapply(metadata_540ind$age, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$age, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+res.aov.age <- aov(age ~ three_groups, data = metadata_540ind)
+summary(res.aov.age)
+pairwise.t.test(metadata_540ind$age, metadata_540ind$three_groups, p.adjust.method = "none", paired = FALSE)
+
+t.test(age ~ three_groups, data = metadata_nmc_hc)
+t.test(age ~ three_groups, data = metadata_nmc_pd)
+```
+
+## SEX
+```{r}
+###calculate proportions 
+sex_summary = metadata_540ind %>%
+              group_by(three_groups, sex) %>%
+              summarise("count"= n())
+sex_summary
+
+sex_summary$proportion = (sex_summary$count / ave(sex_summary$count, sex_summary$three_groups, FUN = sum))*100
+sex_summary = as.data.frame (sex_summary)
+sex_summary
+```
+
+```{r}
+table_sex_nmc_hc <- table(metadata_nmc_hc$sex, metadata_nmc_hc$three_groups)
+table_sex_nmc_hc
+chisq.test(table_sex_nmc_hc)
+```
+
+```{r}
+table_sex_nmc_pd <- table(metadata_nmc_pd$sex, metadata_nmc_pd$three_groups)
+table_sex_nmc_pd
+chisq.test(table_sex_nmc_pd)
+```
+
+```{r}
+table_sex_hc_pd <- table(metadata_hc_pd$sex, metadata_hc_pd$three_groups)
+table_sex_hc_pd
+chisq.test(table_sex_hc_pd)
+```
+
+
+## FAMILY HISTORY
+```{r}
+###calculate proportions for combined positive (first/second degree) vs negative FH
+fhx2_summary = metadata_540ind %>%
+              group_by(three_groups, fhx2) %>%
+              summarise("count"= n())
+fhx2_summary
+
+fhx2_summary$proportion = (fhx2_summary$count / ave(fhx2_summary$count, fhx2_summary$three_groups, FUN = sum))*100
+fhx2_summary = as.data.frame (fhx2_summary)
+fhx2_summary
+```
+
+```{r}
+table_fhx_nmc_hc <- table(metadata_nmc_hc$fhx2, metadata_nmc_hc$three_groups)
+table_fhx_nmc_hc
+chisq.test(table_fhx_nmc_hc)
+```
+
+```{r}
+table_fhx_nmc_pd <- table(metadata_nmc_pd$fhx2, metadata_nmc_pd$three_groups)
+table_fhx_nmc_pd
+chisq.test(table_fhx_nmc_pd)
+```
+
+
+## EDUCATION
+```{r}
+#stats
+tapply(metadata_540ind$ed_yrs, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$ed_yrs, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+wilcox.test(ed_yrs ~ three_groups, data = metadata_nmc_hc)
+wilcox.test(ed_yrs ~ three_groups, data = metadata_nmc_pd)
+```
+
+## PARTNERS
+```{r}
+partner_summary = metadata_540ind %>% filter(metadata_540ind$partner_updated != "NA") %>%
+              group_by(three_groups, partner_updated) %>%
+              summarise("count"= n())
+partner_summary
+
+partner_summary$proportion = (partner_summary$count / ave(partner_summary$count, partner_summary$three_groups, FUN = sum))*100
+partner_summary = as.data.frame (partner_summary)
+partner_summary
+```
+
+
+```{r}
+table_partner = table(metadata_nmc_hc$partner_updated, metadata_nmc_hc$three_groups)
+table_partner
+chisq.test(table_partner)
+```
+
+```{r}
+table_partner = table(metadata_nmc_pd$partner_updated, metadata_nmc_pd$three_groups)
+table_partner
+chisq.test(table_partner)
+```
+
+## FAMILY MEMBERS
+```{r}
+fm_summary = metadata_540ind %>% filter(metadata_540ind$blood_related_updated != "NA") %>%
+              group_by(three_groups, blood_related_updated) %>%
+              summarise("count"= n())
+fm_summary
+
+fm_summary$proportion = (fm_summary$count / ave(fm_summary$count, fm_summary$three_groups, FUN = sum))*100
+fm_summary = as.data.frame (fm_summary)
+fm_summary
+```
+
+```{r}
+table_fm_nmc_hc = table(metadata_nmc_hc$three_groups, metadata_nmc_hc$blood_related_updated)
+table_fm_nmc_hc
+chisq.test(table_fm_nmc_hc)
+```
+
+```{r}
+table_fm_nmc_pd = table(metadata_nmc_pd$three_groups, metadata_nmc_pd$blood_related_updated)
+table_fm_nmc_pd
+chisq.test(table_fm_nmc_pd)
+```
+
+
+## BMI
+```{r}
+tapply(metadata_540ind$bmi, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$bmi, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+wilcox.test(bmi ~ three_groups, data = metadata_nmc_hc)
+wilcox.test(bmi ~ three_groups, data = metadata_nmc_pd)
+```
+
+
+# DISEASE FEATURES: ONLY FOR PD PATIENTS
+
+## Age at onset
+```{r}
+#Age at onset
+#stats
+mean(onlyPD$pd_onset_calculated)
+sd(onlyPD$pd_onset_calculated)
+```
+
+## Disease duration
+```{r}
+mean(onlyPD$pd_dur)
+sd(onlyPD$pd_dur)
+```
+
+## Levodopa equivalent daily dose
+```{r}
+#stats
+mean(onlyPD$ledd_total)
+sd(onlyPD$ledd_total)
+```
+
+## DRUG NAIVE PD 
+```{r}
+table(onlyPD$pd_drug_naive)
+```
+
+## Advanced therapies
+```{r}
+table(onlyPD$pd_dbs) 
+table(onlyPD$pd_apomorphine) 
+table(onlyPD$pd_lcig) 
+```
+
+# CLINICAL FEATURES
+```{r}
+# Analyses are performed separately for HC vs GBA-NMC, and GBA-NMC vs PD; adjustment for multiple testing with BH correction is performed
+```
+
+## MDS-UPDRS part I (var1)
+```{r}
+#stats
+tapply(metadata_540ind$updrs_i_total, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$updrs_i_total, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+updrs_i_total_compa_nmc_hc = wilcox.test(updrs_i_total ~ three_groups, data = metadata_nmc_hc)
+updrs_i_total_compa_nmc_hc
+
+updrs_i_total_compa_nmc_pd = wilcox.test(updrs_i_total ~ three_groups, data = metadata_nmc_pd)
+updrs_i_total_compa_nmc_pd
+```
+
+## MDS-UPDRS part II (var2)
+```{r}
+#stats
+tapply(metadata_540ind$updrs_ii_total, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$updrs_ii_total, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+updrs_ii_total_compa_nmc_hc = wilcox.test(updrs_ii_total ~ three_groups, data = metadata_nmc_hc)
+updrs_ii_total_compa_nmc_hc
+
+updrs_ii_total_compa_nmc_pd = wilcox.test(updrs_ii_total ~ three_groups, data = metadata_nmc_pd)
+updrs_ii_total_compa_nmc_pd
+```
+
+
+## MDS-UPDRS part III (var3)
+```{r}
+#stats
+tapply(metadata_540ind$updrs_iii_total, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$updrs_iii_total, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+updrs_iii_total_compa_nmc_hc = wilcox.test(updrs_iii_total ~ three_groups, data = metadata_nmc_hc)
+updrs_iii_total_compa_nmc_hc
+
+updrs_iii_total_compa_nmc_pd = wilcox.test(updrs_iii_total ~ three_groups, data = metadata_nmc_pd)
+updrs_iii_total_compa_nmc_pd
+```
+
+## MDS-UPDRS part IV (not included as not applicable to HC or GBA-NMC)
+```{r}
+mean(onlyPD$updrs_iv_total, na.rm=T)
+sd(onlyPD$updrs_iv_total, na.rm=T)
+```
+
+## MDS-UPDRS total score (var4)
+```{r}
+#stats
+tapply(metadata_540ind$updrs_total, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$updrs_total, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+updrs_total_compa_nmc_hc = wilcox.test(updrs_total ~ three_groups, data = metadata_nmc_hc)
+updrs_total_compa_nmc_hc
+
+updrs_total_compa_nmc_pd = wilcox.test(updrs_total ~ three_groups, data = metadata_nmc_pd)
+updrs_total_compa_nmc_pd
+```
+
+## HOEHN & YAHR STAGE (var5)
+```{r}
+tapply(metadata_540ind$hoehn_yahr, metadata_540ind$three_groups, FUN = median, na.rm=T)
+tapply(metadata_540ind$hoehn_yahr, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+hoehn_yahr_compa_nmc_hc = wilcox.test(hoehn_yahr ~ three_groups, data = metadata_nmc_hc)
+hoehn_yahr_compa_nmc_hc
+
+hoehn_yahr_compa_nmc_pd = wilcox.test(hoehn_yahr ~ three_groups, data = metadata_nmc_pd)
+hoehn_yahr_compa_nmc_pd
+```
+
+## SCOPA (var6)
+```{r}
+#stats
+tapply(metadata_540ind$scopa_total, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$scopa_total, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+scopa_total_compa_nmc_hc = wilcox.test(scopa_total ~ three_groups, data = metadata_nmc_hc)
+scopa_total_compa_nmc_hc
+
+scopa_total_compa_nmc_pd = wilcox.test(scopa_total ~ three_groups, data = metadata_nmc_pd)
+scopa_total_compa_nmc_pd
+```
+
+## SCOPA gastrointestinal (var7)
+```{r}
+#stats
+tapply(metadata_540ind$scopa_gastrointestinal, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$scopa_gastrointestinal, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+scopa_gastrointestinal_compa_nmc_hc = wilcox.test(scopa_gastrointestinal ~ three_groups, data = metadata_nmc_hc)
+scopa_gastrointestinal_compa_nmc_hc
+
+scopa_gastrointestinal_compa_nmc_pd = wilcox.test(scopa_gastrointestinal ~ three_groups, data = metadata_nmc_pd)
+scopa_gastrointestinal_compa_nmc_pd
+```
+
+## SCOPA urinary (var8)
+```{r}
+#stats
+tapply(metadata_540ind$scopa_urinary, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$scopa_urinary, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+scopa_urinary_compa_nmc_hc = wilcox.test(scopa_urinary ~ three_groups, data = metadata_nmc_hc)
+scopa_urinary_compa_nmc_hc
+
+scopa_urinary_compa_nmc_pd = wilcox.test(scopa_urinary ~ three_groups, data = metadata_nmc_pd)
+scopa_urinary_compa_nmc_pd
+```
+
+## SCOPA cardiovascular (var9)
+```{r}
+#stats
+tapply(metadata_540ind$scopa_cardiovascular, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$scopa_cardiovascular, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+scopa_cardiovascular_compa_nmc_hc = wilcox.test(scopa_cardiovascular ~ three_groups, data = metadata_nmc_hc)
+scopa_cardiovascular_compa_nmc_hc
+
+scopa_cardiovascular_compa_nmc_pd = wilcox.test(scopa_cardiovascular ~ three_groups, data = metadata_nmc_pd)
+scopa_cardiovascular_compa_nmc_pd
+```
+
+## SCOPA thermoregulatory (var10)
+```{r}
+#stats
+tapply(metadata_540ind$scopa_thermoregulatory, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$scopa_thermoregulatory, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+scopa_thermoregulatory_compa_nmc_hc = wilcox.test(scopa_thermoregulatory ~ three_groups, data = metadata_nmc_hc)
+scopa_thermoregulatory_compa_nmc_hc
+
+scopa_thermoregulatory_compa_nmc_pd = wilcox.test(scopa_thermoregulatory ~ three_groups, data = metadata_nmc_pd)
+scopa_thermoregulatory_compa_nmc_pd
+```
+
+## SCOPA pupillomotor (var11)
+```{r}
+#stats
+tapply(metadata_540ind$scopa_pupillomotor, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$scopa_pupillomotor, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+scopa_pupillomotor_compa_nmc_hc = wilcox.test(scopa_pupillomotor ~ three_groups, data = metadata_nmc_hc)
+scopa_pupillomotor_compa_nmc_hc
+
+scopa_pupillomotor_compa_nmc_pd = wilcox.test(scopa_pupillomotor ~ three_groups, data = metadata_nmc_pd)
+scopa_pupillomotor_compa_nmc_pd
+```
+
+## SCOPA sexual (var12)
+```{r}
+#stats
+tapply(metadata_540ind$scopa_sexual, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$scopa_sexual, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+scopa_sexual_compa_nmc_hc = wilcox.test(scopa_sexual ~ three_groups, data = metadata_nmc_hc)
+scopa_sexual_compa_nmc_hc
+
+scopa_sexual_compa_nmc_pd = wilcox.test(scopa_sexual ~ three_groups, data = metadata_nmc_pd)
+scopa_sexual_compa_nmc_pd
+```
+
+## WCSS (var13)
+```{r}
+#stats
+tapply(metadata_540ind$wcs_total, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$wcs_total, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+wcs_total_compa_nmc_hc = wilcox.test(wcs_total ~ three_groups, data = metadata_nmc_hc)
+wcs_total_compa_nmc_hc 
+
+wcs_total_compa_nmc_pd = wilcox.test(wcs_total ~ three_groups, data = metadata_nmc_pd)
+wcs_total_compa_nmc_pd
+```
+
+## RBD (var14)
+```{r}
+## Comparison of total score - not included in multiple comparison testing
+tapply(metadata_540ind$rbdsq_total, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$rbdsq_total, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+rbdsq_total_compa_nmc_hc = wilcox.test(rbdsq_total ~ three_groups, data = metadata_nmc_hc)
+rbdsq_total_compa_nmc_hc
+
+rbdsq_total_compa_nmc_pd = wilcox.test(rbdsq_total ~ three_groups, data = metadata_nmc_pd)
+rbdsq_total_compa_nmc_pd
+```
+
+
+```{r}
+table(metadata_540ind$three_groups, metadata_540ind$rbd_affected_diff)
+
+###calculate proportion
+rbd_summary = metadata_540ind[!is.na(metadata_540ind$rbd_affected_diff),] %>%
+              group_by(three_groups, rbd_affected_diff) %>%
+              summarise("count"= n())
+rbd_summary
+
+rbd_summary$proportion = (rbd_summary$count / ave(rbd_summary$count, rbd_summary$three_groups, FUN = sum))*100
+rbd_summary = as.data.frame (rbd_summary)
+rbd_summary
+```
+
+```{r}
+rbd.model_nmc_hc = glm(as.factor(rbd_affected_diff) ~ three_groups, data = metadata_nmc_hc, family = binomial())
+summary(rbd.model_nmc_hc)
+summary(rbd.model_nmc_hc)$coefficients
+odds.ratio(rbd.model_nmc_hc, level = 0.95, signif.stars = TRUE)
+
+rbd_compa_nmc_hc = as.data.frame(summary(rbd.model_nmc_hc)$coef)
+rbd_compa_nmc_hc_p = as.data.frame(rbd_compa_nmc_hc$`Pr(>|z|)`)
+rbd_compa_nmc_hc_pval = rbd_compa_nmc_hc_p[2,]
+rbd_compa_nmc_hc_pval
+```
+
+```{r}
+rbd.model_nmc_pd = glm(as.factor(rbd_affected_diff) ~ three_groups, data = metadata_nmc_pd, family = binomial())
+summary(rbd.model_nmc_pd)
+summary(rbd.model_nmc_pd)$coefficients
+odds.ratio(rbd.model_nmc_pd, level = 0.95, signif.stars = TRUE)
+
+rbd_compa_nmc_pd = as.data.frame(summary(rbd.model_nmc_pd)$coef)
+rbd_compa_nmc_pd_p = as.data.frame(rbd_compa_nmc_pd$`Pr(>|z|)`)
+rbd_compa_nmc_pd_pval = rbd_compa_nmc_pd_p[2,]
+rbd_compa_nmc_pd_pval
+```
+
+## UPSIT (var15)
+```{r}
+#stats
+tapply(metadata_540ind$upsit_total, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$upsit_total, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+```
+
+```{r}
+res.regression.upsit_compa_nmc_hc <- lm(upsit_total ~ three_groups + age + sex, 
+            data = metadata_nmc_hc)
+
+summary(res.regression.upsit_compa_nmc_hc)
+summary(res.regression.upsit_compa_nmc_hc)$coef
+vif(res.regression.upsit_compa_nmc_hc)
+
+upsit_compa_nmc_hc_res = as.data.frame(summary(res.regression.upsit_compa_nmc_hc)$coef)
+upsit_compa_nmc_hc_p = as.data.frame(upsit_compa_nmc_hc_res$`Pr(>|t|)`)
+upsit_compa_nmc_hc_p
+upsit_compa_nmc_hc_pval = upsit_compa_nmc_hc_p[2,]
+upsit_compa_nmc_hc_pval
+```
+
+```{r}
+res.regression.upsit_compa_nmc_pd <- lm(upsit_total ~ three_groups + age + sex, 
+            data = metadata_nmc_pd)
+
+summary(res.regression.upsit_compa_nmc_pd)
+summary(res.regression.upsit_compa_nmc_pd)$coef
+vif(res.regression.upsit_compa_nmc_pd)
+
+upsit_compa_nmc_pd_res = as.data.frame(summary(res.regression.upsit_compa_nmc_pd)$coef)
+upsit_compa_nmc_pd_p = as.data.frame(upsit_compa_nmc_pd_res$`Pr(>|t|)`)
+upsit_compa_nmc_pd_p
+upsit_compa_nmc_pd_pval = upsit_compa_nmc_pd_p[2,]
+upsit_compa_nmc_pd_pval
+```
+
+## HADS anxiety (var16)
+```{r}
+#stats
+tapply(metadata_540ind$hads_anxiety_total, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$hads_anxiety_total, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+hads_anxiety_total_compa_nmc_hc = wilcox.test(hads_anxiety_total ~ three_groups, data = metadata_nmc_hc)
+hads_anxiety_total_compa_nmc_hc
+
+hads_anxiety_total_compa_nmc_pd = wilcox.test(hads_anxiety_total ~ three_groups, data = metadata_nmc_pd)
+hads_anxiety_total_compa_nmc_pd
+```
+
+## HADS depression (var17)
+```{r}
+#stats
+tapply(metadata_540ind$hads_depression_total, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$hads_depression_total, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+hads_depression_total_compa_nmc_hc = wilcox.test(hads_depression_total ~ three_groups, data = metadata_nmc_hc)
+hads_depression_total_compa_nmc_hc
+
+hads_depression_total_compa_nmc_pd = wilcox.test(hads_depression_total ~ three_groups, data = metadata_nmc_pd)
+hads_depression_total_compa_nmc_pd
+```
+
+## BDI (var18)
+```{r}
+#stats
+tapply(metadata_540ind$bdi_total, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$bdi_total, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+
+bdi_total_compa_nmc_hc = wilcox.test(bdi_total ~ three_groups, data = metadata_nmc_hc)
+bdi_total_compa_nmc_hc
+
+bdi_total_compa_nmc_pd = wilcox.test(bdi_total ~ three_groups, data = metadata_nmc_pd)
+bdi_total_compa_nmc_pd
+```
+
+## MOCA (var19)
+```{r}
+#stats
+tapply(metadata_540ind$moca_total, metadata_540ind$three_groups, FUN = mean, na.rm=T)
+tapply(metadata_540ind$moca_total, metadata_540ind$three_groups, FUN = sd, na.rm=T)
+```
+
+```{r}
+# Comparison of total score - not included in multiple comparison testing
+res.regression.moca_model_compa_nmc_hc = lm(formula = moca_total ~ three_groups + age + sex + ed_yrs, data = metadata_nmc_hc)
+summary(res.regression.moca_model_compa_nmc_hc)
+summary(res.regression.moca_model_compa_nmc_hc)$coefficients
+```
+
+```{r}
+res.regression.moca_model_compa_nmc_pd = lm(formula = moca_total ~ three_groups + age + sex + ed_yrs, data = metadata_nmc_pd)
+summary(res.regression.moca_model_compa_nmc_pd)
+summary(res.regression.moca_model_compa_nmc_pd)$coefficients
+```
+
+```{r}
+moca_summary = metadata_540ind %>% filter(metadata_540ind$moca_range != "NA") %>%
+              group_by(three_groups, moca_range) %>%
+              summarise("count"= n())
+moca_summary
+
+moca_summary$proportion = (moca_summary$count / ave(moca_summary$count, moca_summary$three_groups, FUN = sum))*100
+moca_summary = as.data.frame (moca_summary)
+moca_summary
+```
+
+```{r}
+metadata_nmc_hc = metadata_nmc_hc %>% reorder_levels(three_groups, order = c("HC", "GBA_NMC"))
+metadata_nmc_hc = metadata_nmc_hc %>% reorder_levels(moca_range, order = c("Normal", "Abnormal"))
+metadata_nmc_hc$moca_range = as.factor(metadata_nmc_hc$moca_range)
+
+moca_binary_model_compa_nmc_hc = glm(moca_range ~ three_groups + age + sex + ed_yrs, data = metadata_nmc_hc, family = binomial())
+summary(moca_binary_model_compa_nmc_hc)
+summary(moca_binary_model_compa_nmc_hc)$coefficients
+odds.ratio(moca_binary_model_compa_nmc_hc, level = 0.95, signif.stars = TRUE)
+
+moca_compa_nmc_hc = as.data.frame(summary(moca_binary_model_compa_nmc_hc)$coef)
+moca_compa_nmc_hc_p = as.data.frame(moca_compa_nmc_hc$`Pr(>|z|)`)
+moca_compa_nmc_hc_pval = moca_compa_nmc_hc_p[2,]
+moca_compa_nmc_hc_pval
+```
+
+
+```{r}
+metadata_nmc_pd = metadata_nmc_pd %>% reorder_levels(three_groups, order = c("GBA_NMC", "PD"))
+metadata_nmc_pd = metadata_nmc_pd %>% reorder_levels(moca_range, order = c("Normal", "Abnormal"))
+metadata_nmc_pd$moca_range = as.factor(metadata_nmc_pd$moca_range)
+
+moca_binary_model_compa_nmc_pd = glm(moca_range ~ three_groups + age + sex + ed_yrs, data = metadata_nmc_pd, family = binomial())
+summary(moca_binary_model_compa_nmc_pd)
+summary(moca_binary_model_compa_nmc_pd)$coefficients
+odds.ratio(moca_binary_model_compa_nmc_pd, level = 0.95, signif.stars = TRUE)
+
+moca_compa_nmc_pd = as.data.frame(summary(moca_binary_model_compa_nmc_pd)$coef)
+moca_compa_nmc_pd_p = as.data.frame(moca_compa_nmc_pd$`Pr(>|z|)`)
+moca_compa_nmc_pd_pval = moca_compa_nmc_pd_p[2,]
+moca_compa_nmc_pd_pval
+```
+
+
+# HC vs GBA-NMC: Clinical variables: adjustment for multiple comparison
+```{r}
+pvalues_clinical_nmc_hc = c(
+                     round(updrs_i_total_compa_nmc_hc$p.value,4), #var1
+                     round(updrs_ii_total_compa_nmc_hc$p.value,4), #var2 
+                     round(updrs_iii_total_compa_nmc_hc$p.value,4), #var3
+                     round(updrs_total_compa_nmc_hc$p.value,4), #var4
+                     round(hoehn_yahr_compa_nmc_hc$p.value,4), #var5
+                     
+                     round(scopa_total_compa_nmc_hc$p.value,4), #var6
+                     round(scopa_gastrointestinal_compa_nmc_hc$p.value,4), #var7
+                     round(scopa_urinary_compa_nmc_hc$p.value,4), #var8
+                     round(scopa_cardiovascular_compa_nmc_hc$p.value,4), #var9
+                     round(scopa_thermoregulatory_compa_nmc_hc$p.value,4), #var10
+                     round(scopa_pupillomotor_compa_nmc_hc$p.value,4), #var11
+                     round(scopa_sexual_compa_nmc_hc$p.value,4), #var12
+                     
+                     round(wcs_total_compa_nmc_hc$p.value,4), #var13
+                     round(rbd_compa_nmc_hc_pval, 4), #var14
+                     round(upsit_compa_nmc_hc_pval, 4), #var15
+                     round(hads_anxiety_total_compa_nmc_hc$p.value,4), #var16
+                     round(hads_depression_total_compa_nmc_hc$p.value,4), #var17
+                     round(bdi_total_compa_nmc_hc$p.value,4), #var18
+                     round(moca_compa_nmc_hc_pval,4) #var19
+                     )
+print(pvalues_clinical_nmc_hc)
+```
+
+```{r}
+pvalues_clinical_nmc_hc_ordered = pvalues_clinical_nmc_hc[order(pvalues_clinical_nmc_hc)]
+print(pvalues_clinical_nmc_hc_ordered)
+```
+
+```{r}
+fdrs_nmc_hc <-p.adjust(pvalues_clinical_nmc_hc_ordered, method="BH")
+print(fdrs_nmc_hc)
+```
+
+
+# GBA-NMC vs PD: Clinical variables: adjustment for multiple comparison
+```{r}
+pvalues_clinical_nmc_pd = c(
+                     round(updrs_i_total_compa_nmc_pd$p.value,4), #var1
+                     round(updrs_ii_total_compa_nmc_pd$p.value,4), #var2 
+                     round(updrs_iii_total_compa_nmc_pd$p.value,4), #var3
+                     round(updrs_total_compa_nmc_pd$p.value,4), #var4
+                     round(hoehn_yahr_compa_nmc_pd$p.value,4), #var5
+                     
+                     round(scopa_total_compa_nmc_pd$p.value,4), #var6
+                     round(scopa_gastrointestinal_compa_nmc_pd$p.value,4), #var7
+                     round(scopa_urinary_compa_nmc_pd$p.value,4), #var8
+                     round(scopa_cardiovascular_compa_nmc_pd$p.value,4), #var9
+                     round(scopa_thermoregulatory_compa_nmc_pd$p.value,4), #var10
+                     round(scopa_pupillomotor_compa_nmc_pd$p.value,4), #var11
+                     round(scopa_sexual_compa_nmc_pd$p.value,4), #var12
+                     
+                     round(wcs_total_compa_nmc_pd$p.value,4), #var13
+                     round(rbd_compa_nmc_pd_pval, 4), #var14
+                     round(upsit_compa_nmc_pd_pval, 4), #var15
+                     round(hads_anxiety_total_compa_nmc_pd$p.value,4), #var16
+                     round(hads_depression_total_compa_nmc_pd$p.value,4), #var17
+                     round(bdi_total_compa_nmc_pd$p.value,4), #var18
+                     round(moca_compa_nmc_pd_pval,4) #var19
+                     )
+print(pvalues_clinical_nmc_pd)
+str(pvalues_clinical_nmc_pd)
+test = as.data.frame(pvalues_clinical_nmc_pd)
+```
+
+```{r}
+pvalues_clinical_nmc_pd_ordered = pvalues_clinical_nmc_pd[order(pvalues_clinical_nmc_pd)]
+print(pvalues_clinical_nmc_pd_ordered)
+```
+
+```{r}
+fdrs_nmc_pd <-p.adjust(pvalues_clinical_nmc_pd_ordered, method="BH")
+print(fdrs_nmc_pd)
+```
+
+## PRODROMAL PROBABILITY
+```{r}
+table(metadata_540ind$three_groups, metadata_540ind$prob_prodromalPD)
+```
+
+# PD ONLY: GBA-PD vs iPD
+# RESULTS SUMMARY
+```{r}
+table(onlyPD$group)
+table(onlyPD$cohort, onlyPD$group)
+```
+
+
+```{r}
+onlyPD = onlyPD %>% reorder_levels(group, order = c("GBA_PD", "sPD"))
+
+table_summ_pd <- group_by(onlyPD, "group"=group) %>% 
+  summarise(
+
+    mean_age = round(mean(age, na.rm=T),1), sd_age = round(sd(age, na.rm=T), 1),
+    
+    mean_bmi = round(mean(bmi, na.rm=T),1), sd_bmi = round(sd(bmi, na.rm=T), 1),
+            
+    mean_pd_onset = round(mean(pd_onset_calculated, na.rm=T),1), sd_pd_onset = round(sd(pd_onset_calculated, na.rm=T), 1),
+            
+    mean_pd_dur = round(mean(pd_dur, na.rm=T),1), sd_pd_dur = round(sd(pd_dur, na.rm=T), 1),
+            
+    mean_hy = round(median(hoehn_yahr, na.rm=T),1), sd_hy = round(sd(hoehn_yahr, na.rm=T), 1),
+            
+    mean_ledd = round(mean(ledd_total, na.rm=T),1), sd_ledd = round(sd(ledd_total, na.rm=T), 1),
+            
+    mean_updrs_i = round(mean(updrs_i_total, na.rm=T),1), sd_updrs_i = round(sd(updrs_i_total, na.rm=T), 1),
+            
+    mean_updrs_ii_total = round(mean(updrs_ii_total, na.rm=T),1), sd_updrs_ii_total = round(sd(updrs_ii_total, na.rm=T), 1),
+            
+    mean_updrs_iii_total = round(mean(updrs_iii_total, na.rm=T),1), sd_updrs_iii_total = round(sd(updrs_iii_total, na.rm=T), 1),
+            
+    mean_updrs_iv_total = round(mean(updrs_iv_total, na.rm=T),1), sd_updrs_iv_total = round(sd(updrs_iv_total, na.rm=T), 1),
+            
+    mean_updrs_total = round(mean(updrs_total, na.rm=T),1), sd_updrs_total = round(sd(updrs_total, na.rm=T), 1),
+             
+    mean_scopa_total = round(mean(scopa_total, na.rm=T),1), sd_scopa_total = round(sd(scopa_total, na.rm=T), 1),
+  
+       
+    mean_scopa_gastrointestinal = round(mean(scopa_gastrointestinal, na.rm=T),1), sd_scopa_gastrointestinal = round(sd(scopa_gastrointestinal, na.rm=T), 1),
+       
+    mean_scopa_urinary = round(mean(scopa_urinary, na.rm=T),1), sd_scopa_urinary = round(sd(scopa_urinary, na.rm=T), 1),
+       
+    mean_scopa_cardiovascular = round(mean(scopa_cardiovascular, na.rm=T),1), sd_scopa_cardiovascular = round(sd(scopa_cardiovascular, na.rm=T), 1),
+       
+    mean_scopa_thermoregulatory = round(mean(scopa_thermoregulatory, na.rm=T),1), sd_scopa_thermoregulatory = round(sd(scopa_thermoregulatory, na.rm=T), 1),
+       
+    mean_scopa_pupillomotor = round(mean(scopa_pupillomotor, na.rm=T),1), sd_scopa_pupillomotor = round(sd(scopa_pupillomotor, na.rm=T), 1),
+    
+    mean_scopa_sexual = round(mean(scopa_sexual, na.rm=T),1), sd_scopa_sexual = round(sd(scopa_sexual, na.rm=T), 1),
+    
+    mean_wcs_total = round(mean(wcs_total, na.rm=T),1), sd_wcs_total = round(sd(wcs_total, na.rm=T), 1),
+    
+    mean_rbdsq_total = round(mean(rbdsq_total, na.rm=T),1), sd_rbdsq_total = round(sd(rbdsq_total, na.rm=T), 1),
+    
+    mean_upsit_total = round(mean(upsit_total, na.rm=T),1), sd_upsit_total = round(sd(upsit_total, na.rm=T), 1),
+    
+    mean_hads_anxiety_total = round(mean(hads_anxiety_total, na.rm=T),1), sd_hads_anxiety_total = round(sd(hads_anxiety_total, na.rm=T), 1),
+    
+    mean_hads_depression_total = round(mean(hads_depression_total, na.rm=T),1), sd_hads_depression_total = round(sd(hads_depression_total, na.rm=T), 1),
+    
+    mean_bdi_total = round(mean(bdi_total, na.rm=T),1), sd_bdi_total = round(sd(bdi_total, na.rm=T), 1),
+    
+    mean_moca_total = round(mean(moca_total, na.rm=T),1), sd_moca_total = round(sd(moca_total, na.rm=T), 1)
+            )
+
+glimpse(table_summ_pd)
+
+```
+
+# DEMOGRAPHICS
+## COHORT
+```{r}
+table(onlyPD$group)
+table(onlyPD$group, onlyPD$cohort)
+```
+
+## AGE
+```{r}
+#stats
+tapply(onlyPD$age, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$age, onlyPD$group, FUN = sd, na.rm=T)
+
+t.test(age ~ group, data = onlyPD)
+```
+
+## SEX
+```{r}
+###calculate proportions 
+sex_summary_onlyPD = onlyPD %>%
+              group_by(group, sex) %>%
+              summarise("count"= n())
+sex_summary_onlyPD
+
+sex_summary_onlyPD$proportion = (sex_summary_onlyPD$count / ave(sex_summary_onlyPD$count, sex_summary_onlyPD$group, FUN = sum))*100
+sex_summary_onlyPD = as.data.frame (sex_summary_onlyPD)
+sex_summary_onlyPD
+```
+
+```{r}
+table_sex_onlyPD <- table(onlyPD$sex, onlyPD$group)
+table_sex_onlyPD
+chisq.test(table_sex_onlyPD)
+```
+
+## FAMILY HISTORY
+```{r}
+###calculate proportions for combined positive (first/second degree) vs negative FH
+fhx2_summary_onlyPD = onlyPD %>%
+              group_by(group, fhx2) %>%
+              summarise("count"= n())
+fhx2_summary_onlyPD
+
+fhx2_summary_onlyPD$proportion = (fhx2_summary_onlyPD$count / ave(fhx2_summary_onlyPD$count, fhx2_summary_onlyPD$group, FUN = sum))*100
+fhx2_summary_onlyPD = as.data.frame (fhx2_summary_onlyPD)
+fhx2_summary_onlyPD
+```
+
+```{r}
+table_fhx <- table(onlyPD$fhx2, onlyPD$group)
+table_fhx
+chisq.test(table_fhx)
+```
+
+## EDUCATION
+```{r}
+#stats
+tapply(onlyPD$ed_yrs, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$ed_yrs, onlyPD$group, FUN = sd, na.rm=T)
+
+wilcox.test(ed_yrs ~ group, data = onlyPD)
+```
+
+## PARTNERS
+```{r}
+partner_summary_onlyPD = onlyPD %>% filter(onlyPD$partner_updated != "NA") %>%
+              group_by(group, partner_updated) %>%
+              summarise("count"= n())
+partner_summary_onlyPD
+
+partner_summary_onlyPD$proportion = (partner_summary_onlyPD$count / ave(partner_summary_onlyPD$count, partner_summary_onlyPD$group, FUN = sum))*100
+partner_summary_onlyPD = as.data.frame (partner_summary_onlyPD)
+partner_summary_onlyPD
+```
+
+```{r}
+table_partner = table(onlyPD$partner_updated, onlyPD$group)
+table_partner
+chisq.test(table_partner)
+```
+
+## FAMILY MEMBERS
+```{r}
+fm_summary_onlyPD = onlyPD %>% filter(onlyPD$blood_related_updated != "NA") %>%
+              group_by(group, blood_related_updated) %>%
+              summarise("count"= n())
+fm_summary_onlyPD
+
+fm_summary_onlyPD$proportion = (fm_summary_onlyPD$count / ave(fm_summary_onlyPD$count, fm_summary_onlyPD$group, FUN = sum))*100
+fm_summary_onlyPD = as.data.frame (fm_summary_onlyPD)
+fm_summary_onlyPD
+```
+
+```{r}
+table_fm = table(onlyPD$group, onlyPD$blood_related_updated)
+table_fm
+chisq.test(table_fm)
+```
+
+## BMI
+```{r}
+tapply(onlyPD$bmi, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$bmi, onlyPD$group, FUN = sd, na.rm=T)
+
+wilcox.test(bmi ~ group, data = onlyPD)
+```
+
+
+# DISEASE FEATURES
+## Age at onset
+```{r}
+#Age at onset
+tapply(onlyPD$pd_onset_calculated, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$pd_onset_calculated, onlyPD$group, FUN = sd, na.rm=T)
+
+t.test(pd_onset_calculated ~ group, data = onlyPD)
+```
+
+## Disease duration
+```{r}
+mean(onlyPD$pd_dur)
+sd(onlyPD$pd_dur)
+
+wilcox.test(pd_dur ~ group, data = onlyPD)
+```
+
+
+## Levodopa equivalent daily dose
+```{r}
+#stats
+mean(onlyPD$ledd_total)
+sd(onlyPD$ledd_total)
+wilcox.test(ledd_total ~ group, data = onlyPD)
+```
+
+## DRUG NAIVE PD 
+```{r}
+#calculate proportions of patients who underwent DBS in various groups
+naive_summary = onlyPD %>%
+                group_by(group, pd_drug_naive) %>% 
+                summarise("count"= n())
+naive_summary
+
+naive_summary$proportion = (naive_summary$count / ave(naive_summary$count, naive_summary$group, FUN = sum))*100
+naive_summary = as.data.frame(naive_summary)
+naive_summary
+
+table(onlyPD$pd_drug_naive)
+table_naive = table(onlyPD$pd_drug_naive, onlyPD$group)
+chisq.test(table_naive)
+```
+
+## DBS
+```{r}
+#calculate proportions of patients who underwent DBS in various groups
+dbs_summary = onlyPD %>%
+                group_by(group, pd_dbs) %>% 
+                summarise("count"= n())
+dbs_summary
+
+dbs_summary$proportion = (dbs_summary$count / ave(dbs_summary$count, dbs_summary$group, FUN = sum))*100
+dbs_summary = as.data.frame(dbs_summary)
+dbs_summary
+
+table(onlyPD$pd_dbs) # 40 patients with DBS
+table_dbs = table(onlyPD$pd_dbs, onlyPD$group)
+chisq.test(table_dbs)
+```
+
+# APOMORPHINE
+```{r}
+#calculate proportions of patients who underwent DBS in various groups
+apo_summary = onlyPD %>%
+                group_by(group, pd_apomorphine) %>% 
+                summarise("count"= n())
+apo_summary
+
+apo_summary$proportion = (apo_summary$count / ave(apo_summary$count, apo_summary$group, FUN = sum))*100
+apo_summary = as.data.frame(apo_summary)
+apo_summary
+
+table(onlyPD$pd_apomorphine) 
+table_apo = table(onlyPD$pd_apomorphine, onlyPD$group)
+fisher.test(table_apo)
+```
+
+# LCIG 
+```{r}
+#calculate proportions of patients who underwent DBS in various groups
+lcig_summary = onlyPD %>%
+                group_by(group, pd_lcig) %>% 
+                summarise("count"= n())
+lcig_summary
+
+lcig_summary$proportion = (lcig_summary$count / ave(lcig_summary$count, lcig_summary$group, FUN = sum))*100
+lcig_summary = as.data.frame(lcig_summary)
+lcig_summary
+
+table(onlyPD$pd_lcig) 
+table_lcig = table(onlyPD$pd_lcig, onlyPD$group)
+fisher.test(table_lcig)
+```
+
+# CLINICAL FEATURES
+```{r}
+# Analyses with adjustment for multiple testing with BH correction are performed
+```
+
+## MDS-UPDRS part I (var1)
+```{r}
+#stats
+tapply(onlyPD$updrs_i_total, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$updrs_i_total, onlyPD$group, FUN = sd, na.rm=T)
+
+updrs_i_total_compa_pd = wilcox.test(updrs_i_total ~ group, data = onlyPD)
+updrs_i_total_compa_pd
+```
+
+## MDS-UPDRS part II (var2)
+```{r}
+#stats
+tapply(onlyPD$updrs_ii_total, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$updrs_ii_total, onlyPD$group, FUN = sd, na.rm=T)
+
+updrs_ii_total_compa_pd = wilcox.test(updrs_ii_total ~ group, data = onlyPD)
+updrs_ii_total_compa_pd
+```
+
+## MDS-UPDRS part III (var3)
+```{r}
+#stats
+tapply(onlyPD$updrs_iii_total, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$updrs_iii_total, onlyPD$group, FUN = sd, na.rm=T)
+
+updrs_iii_total_compa_pd = wilcox.test(updrs_iii_total ~ group, data = onlyPD)
+updrs_iii_total_compa_pd
+```
+
+## MDS-UPDRS part IV (var4)
+```{r}
+tapply(onlyPD$updrs_iv_total, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$updrs_iv_total, onlyPD$group, FUN = sd, na.rm=T)
+
+updrs_iv_total_compa_pd = wilcox.test(updrs_iv_total ~ group, data = onlyPD)
+updrs_iv_total_compa_pd
+```
+
+## MDS-UPDRS total score (var5)
+```{r}
+#stats
+tapply(onlyPD$updrs_total, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$updrs_total, onlyPD$group, FUN = sd, na.rm=T)
+
+updrs_total_compa_pd = wilcox.test(updrs_total ~ group, data = onlyPD)
+updrs_total_compa_pd
+```
+
+## HOEHN & YAHR STAGE (var6)
+```{r}
+tapply(onlyPD$hoehn_yahr, onlyPD$three_groups, FUN = median, na.rm=T)
+tapply(onlyPD$hoehn_yahr, onlyPD$three_groups, FUN = sd, na.rm=T)
+
+hoehn_yahr_compa_pd = wilcox.test(hoehn_yahr ~ group, data = onlyPD)
+hoehn_yahr_compa_pd
+```
+
+## SCOPA (var7)
+```{r}
+#stats
+tapply(onlyPD$scopa_total, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$scopa_total, onlyPD$group, FUN = sd, na.rm=T)
+
+scopa_total_compa_pd = wilcox.test(scopa_total ~ group, data = onlyPD)
+scopa_total_compa_pd
+```
+
+## SCOPA gastrointestinal (var8)
+```{r}
+#stats
+tapply(onlyPD$scopa_gastrointestinal, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$scopa_gastrointestinal, onlyPD$group, FUN = sd, na.rm=T)
+
+scopa_gastrointestinal_compa_pd = wilcox.test(scopa_gastrointestinal ~ group, data = onlyPD)
+scopa_gastrointestinal_compa_pd
+```
+
+## SCOPA urinary (var9)
+```{r}
+#stats
+tapply(onlyPD$scopa_urinary, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$scopa_urinary, onlyPD$group, FUN = sd, na.rm=T)
+
+scopa_urinary_compa_pd = wilcox.test(scopa_urinary ~ group, data = onlyPD)
+scopa_urinary_compa_pd
+```
+
+## SCOPA cardiovascular (var10)
+```{r}
+#stats
+tapply(onlyPD$scopa_cardiovascular, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$scopa_cardiovascular, onlyPD$group, FUN = sd, na.rm=T)
+
+scopa_cardiovascular_compa_pd = wilcox.test(scopa_cardiovascular ~ group, data = onlyPD)
+scopa_cardiovascular_compa_pd
+```
+
+## SCOPA thermoregulatory (var11)
+```{r}
+#stats
+tapply(onlyPD$scopa_thermoregulatory, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$scopa_thermoregulatory, onlyPD$group, FUN = sd, na.rm=T)
+
+scopa_thermoregulatory_compa_pd = wilcox.test(scopa_thermoregulatory ~ group, data = onlyPD)
+scopa_thermoregulatory_compa_pd
+```
+
+## SCOPA pupillomotor (var12)
+```{r}
+#stats
+tapply(onlyPD$scopa_pupillomotor, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$scopa_pupillomotor, onlyPD$group, FUN = sd, na.rm=T)
+
+scopa_pupillomotor_compa_pd = wilcox.test(scopa_pupillomotor ~ group, data = onlyPD)
+scopa_pupillomotor_compa_pd
+```
+
+## SCOPA sexual (var13)
+```{r}
+#stats
+tapply(onlyPD$scopa_sexual, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$scopa_sexual, onlyPD$group, FUN = sd, na.rm=T)
+
+scopa_sexual_compa_pd = wilcox.test(scopa_sexual ~ group, data = onlyPD)
+scopa_sexual_compa_pd
+```
+
+## WCSS (var14)
+```{r}
+#stats
+tapply(onlyPD$wcs_total, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$wcs_total, onlyPD$group, FUN = sd, na.rm=T)
+
+wcs_total_compa_pd = wilcox.test(wcs_total ~ group, data = onlyPD)
+wcs_total_compa_pd
+```
+
+## RBD (var15)
+```{r}
+# Comparison of total score - not included in multiple comparison testing
+tapply(onlyPD$rbdsq_total, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$rbdsq_total, onlyPD$group, FUN = sd, na.rm=T)
+
+rbdsq_total_compa_pd = wilcox.test(rbdsq_total ~ group, data = onlyPD)
+rbdsq_total_compa_pd
+```
+
+
+```{r}
+table(onlyPD$group, onlyPD$rbd_affected_diff)
+
+###calculate proportion
+rbd_summary_onlyPD = onlyPD[!is.na(onlyPD$rbd_affected_diff),] %>%
+              group_by(group, rbd_affected_diff) %>%
+              summarise("count"= n())
+rbd_summary_onlyPD
+
+rbd_summary_onlyPD$proportion = (rbd_summary_onlyPD$count / ave(rbd_summary_onlyPD$count, rbd_summary_onlyPD$group, FUN = sum))*100
+rbd_summary_onlyPD = as.data.frame (rbd_summary_onlyPD)
+rbd_summary_onlyPD
+```
+
+```{r}
+rbd.model_pd = glm(as.factor(rbd_affected_diff) ~ group, data = onlyPD, family = binomial())
+summary(rbd.model_pd)
+summary(rbd.model_pd)$coefficients
+odds.ratio(rbd.model_pd, level = 0.95, signif.stars = TRUE)
+
+rbd_compa_pd = as.data.frame(summary(rbd.model_pd)$coef)
+rbd_compa_pd_p = as.data.frame(rbd_compa_pd$`Pr(>|z|)`)
+rbd_compa_pd_pval = rbd_compa_pd_p[2,]
+rbd_compa_pd_pval
+```
+
+## UPSIT (var16)
+```{r}
+#stats
+tapply(onlyPD$upsit_total, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$upsit_total, onlyPD$group, FUN = sd, na.rm=T)
+```
+
+```{r}
+res.regression.upsit_compa_pd <- lm(upsit_total ~ group + age + sex, 
+            data = onlyPD)
+
+summary(res.regression.upsit_compa_pd)
+summary(res.regression.upsit_compa_pd)$coef
+vif(res.regression.upsit_compa_pd)
+
+upsit_compa_pd_res = as.data.frame(summary(res.regression.upsit_compa_pd)$coef)
+upsit_compa_pd_p = as.data.frame(upsit_compa_pd_res$`Pr(>|t|)`)
+upsit_compa_pd_p
+upsit_compa_pd_pval = upsit_compa_pd_p[2,]
+upsit_compa_pd_pval
+```
+
+## HADS anxiety (var17)
+```{r}
+#stats
+tapply(onlyPD$hads_anxiety_total, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$hads_anxiety_total, onlyPD$group, FUN = sd, na.rm=T)
+
+hads_anxiety_total_compa_pd = wilcox.test(hads_anxiety_total ~ group, data = onlyPD)
+hads_anxiety_total_compa_pd
+```
+
+## HADS depression (var18)
+```{r}
+#stats
+tapply(onlyPD$hads_depression_total, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$hads_depression_total, onlyPD$group, FUN = sd, na.rm=T)
+
+hads_depression_total_compa_pd = wilcox.test(hads_depression_total ~ group, data = onlyPD)
+hads_depression_total_compa_pd
+```
+
+## BDI (var19)
+```{r}
+#stats
+tapply(onlyPD$bdi_total, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$bdi_total, onlyPD$group, FUN = sd, na.rm=T)
+
+bdi_total_compa_pd = wilcox.test(bdi_total ~ group, data = onlyPD)
+bdi_total_compa_pd
+```
+
+## MOCA (var20)
+```{r}
+#stats
+tapply(onlyPD$moca_total, onlyPD$group, FUN = mean, na.rm=T)
+tapply(onlyPD$moca_total, onlyPD$group, FUN = sd, na.rm=T)
+```
+
+```{r}
+# Comparison of total score - not included in multiple comparison testing
+moca_model_compa_pd = lm(formula = moca_total ~ group + age + sex + ed_yrs, data = onlyPD)
+summary(moca_model_compa_pd)
+summary(moca_model_compa_pd)$coefficients
+```
+
+```{r}
+moca_summary_onlyPD = onlyPD %>% filter(onlyPD$moca_range != "NA") %>%
+              group_by(group, moca_range) %>%
+              summarise("count"= n())
+moca_summary_onlyPD
+
+moca_summary_onlyPD$proportion = (moca_summary_onlyPD$count / ave(moca_summary_onlyPD$count, moca_summary_onlyPD$group, FUN = sum))*100
+moca_summary_onlyPD = as.data.frame (moca_summary_onlyPD)
+moca_summary_onlyPD
+```
+
+```{r}
+onlyPD = onlyPD %>% reorder_levels(moca_range, order = c("Normal", "Abnormal"))
+onlyPD$moca_range = as.factor(onlyPD$moca_range)
+
+moca_binary_model_compa_pd = glm(moca_range ~ group + age + sex + ed_yrs, data = onlyPD, family = binomial())
+summary(moca_binary_model_compa_pd)
+summary(moca_binary_model_compa_pd)$coefficients
+odds.ratio(moca_binary_model_compa_pd, level = 0.95, signif.stars = TRUE)
+
+moca_model_compa_pd_res = as.data.frame(summary(moca_binary_model_compa_pd)$coef)
+moca_compa_pd_p = as.data.frame(moca_model_compa_pd_res$`Pr(>|z|)`)
+moca_compa_pd_pval = moca_compa_pd_p[2,]
+moca_compa_pd_pval
+```
+
+# GBA-PD vs idiopathic PD: Clinical variables: adjustment for multiple comparison
+```{r}
+pvalues_clinical_pd = c(
+                     round(updrs_i_total_compa_pd$p.value,4), #var1
+                     round(updrs_ii_total_compa_pd$p.value,4), #var2 
+                     round(updrs_iii_total_compa_pd$p.value,4), #var3
+                      round(updrs_iv_total_compa_pd$p.value,4), #var4
+                     round(updrs_total_compa_pd$p.value,4), #var5
+                     round(hoehn_yahr_compa_pd$p.value,4), #var6
+                     
+                     round(scopa_total_compa_pd$p.value,4), #var7
+                     round(scopa_gastrointestinal_compa_pd$p.value,4), #var8
+                     round(scopa_urinary_compa_pd$p.value,4), #var9
+                     round(scopa_cardiovascular_compa_pd$p.value,4), #var10
+                     round(scopa_thermoregulatory_compa_pd$p.value,4), #var11
+                     round(scopa_pupillomotor_compa_pd$p.value,4), #var12
+                     round(scopa_sexual_compa_pd$p.value,4),  #var13
+                     
+                     round(wcs_total_compa_pd$p.value,4),  #var14
+                     round(rbd_compa_pd_pval, 4),  #var15
+                     round(upsit_compa_pd_pval, 4),  #var16
+                     round(hads_anxiety_total_compa_pd$p.value,4),  #var17
+                     round(hads_depression_total_compa_pd$p.value,4),  #var18
+                     round(bdi_total_compa_pd$p.value,4),  #var19
+                     round(moca_compa_pd_pval,4)  #var20
+                     )
+print(pvalues_clinical_pd)
+
+test = as.data.frame(print(pvalues_clinical_pd))
+```
+
+```{r}
+pvalues_clinical_pd_ordered = pvalues_clinical_pd[order(pvalues_clinical_pd)]
+print(pvalues_clinical_pd_ordered)
+```
+
+```{r}
+fdrs_compa_pd <-p.adjust(pvalues_clinical_pd_ordered, method="BH")
+print(fdrs_compa_pd)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
