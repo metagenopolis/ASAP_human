@@ -1,6 +1,5 @@
 ---
 title: "Microbiome signature of Parkinson disease in healthy and genetically at-risk individuals - Figures"
-subtitle: "In progress"
 author: "Yani Ren, Mallia Geiger, Victoria Meslier"
 date: "2025-02-18"
 output: html_document
@@ -157,7 +156,7 @@ for (i in 1:ncol(my_compa)){
 
 
 ```{r, fig.width=11, fig.height=23}
-# BARPLOT MSP CONTRAST - PAIRWISE COMPARISONS
+# MSP CONTRAST - PAIRWISE COMPARISONS
 tab_group <- table(temp_metadata$group_bis)
 
 for (i in 1:ncol(my_compa)){
@@ -168,7 +167,7 @@ for (i in 1:ncol(my_compa)){
     # extract output for significant test based on p<0.05
     df_testR.sign <- df_testR[which(df_testR$p<0.05),]
     
-    # show number of significant MSP according to different pval
+    # show number of significant MSP according to different pval cutoffs
     cat(pairwise_group, ", nb msp sign p<0.05 : ", nrow(df_testR.sign),"\n") 
     cat(pairwise_group, ", nb msp sign q<0.05 : ", nrow(df_testR[which(df_testR$q<0.05),]), "\n")
     cat(pairwise_group, ", nb msp sign q<0.1 : ", nrow(df_testR[which(df_testR$q<0.1),]), "\n")
@@ -323,10 +322,10 @@ reg_PD_vs_HC_NMC_cliff34 <- reg_plot(PD_vs_HC_NMC_noncoh34, x = "HC.PD_Cliffdelt
 
 
 ```{r, results='hide'}
-# PROPORTION - COHERENT ALTERED IN PD (140 SPECIES)
+# PROPORTION - COHERENT ALTERED IN PD (142 SPECIES)
 vec_group <- c("HC", "GBA_NMC", "PD") 
 
-# compute proportion of MSP coherently enriched or depleted in samples
+# compute proportion of MSP coherently enriched or depleted in PD, in samples of each group
 grp_CE_prop <- compute_prop(vec_group, temp_metadata, msp_fecal.filt10, CE)
 grp_CD_prop <- compute_prop(vec_group, temp_metadata, msp_fecal.filt10, CD)
 
@@ -354,7 +353,7 @@ prop_coh_pval
 # PROPORTION - NONCOHERENT ALTERED IN PD
 vec_group <- c("HC", "GBA_NMC", "PD") 
 
-# compute the proportion for each subtype in each group
+# compute the proportion of MSP noncoherently enriched or depleted in PD, in samples of each group
 grp_NE_prop <- compute_prop(vec_group, temp_metadata, msp_fecal.filt10, NE)
 grp_ND_prop <- compute_prop(vec_group, temp_metadata, msp_fecal.filt10, ND)
 
@@ -381,6 +380,7 @@ fig_prop_noncoh_pval <- show_tab(prop_noncoh_pval)
 # ABUNDANCE - COHERENT ALTERED IN PD
 vec_group <- c("HC", "GBA_NMC", "PD") 
 
+# compute the abundance of MSP coherently enriched or depleted in PD, in samples of each group
 grp_CE_abund <- compute_abund(vec_group, temp_metadata, msp_fecal.filt10, CE)
 grp_CD_abund <- compute_abund(vec_group, temp_metadata, msp_fecal.filt10, CD)
 
@@ -408,6 +408,7 @@ fig_abund_coh_pval <- show_tab(abund_coh_pval)
 # The data used are the abundance of MSP which are non-coherently altered in GBA_NMC and PD relative to HC. 
 vec_group <- c("HC", "GBA_NMC", "PD") 
 
+# compute the abundance of MSP noncoherently enriched or depleted in PD, in samples of each group
 grp_NE_abund <- compute_abund(vec_group, temp_metadata, msp_fecal.filt10, NE)
 grp_ND_abund <- compute_abund(vec_group, temp_metadata, msp_fecal.filt10, ND)
 
@@ -517,14 +518,12 @@ HC_quartile_CE_prop <- get_quartile(grp_CE_prop$HC, "E")
 # quartile of HC16 is determined by their PDMS score
 HC16_lower <- HC_pdms[which(HC_pdms <=(-5))]
 HC16_higher <- HC_pdms[which(HC_pdms >= 3)]
+length(HC16_lower) # 21
+length(HC16_higher) # 27
 
 # checking
-length(NMC_quartile_CE_prop$below)
-length(NMC_quartile_CE_prop$above)
-NMC_quartile_CD_prop <- get_median(grp_CD_prop$GBA_NMC, "D")
-
-length(HC16_lower)
-length(HC16_higher)
+length(NMC_quartile_CE_prop$below) # 21
+length(NMC_quartile_CE_prop$above) # 22
 ```
 
 
@@ -552,7 +551,7 @@ df_lowhigh_raw <- lowhigh_data %>%
     # sub_list = liste contenant low et high
     # group_list = "grp1", "grp2", etc.
     
-    imap_dfr(sub_list, function(df, sub_grp) {
+    purrr::imap_dfr(sub_list, function(df, sub_grp) {
       df %>%
         mutate(
           group = group_list,
@@ -796,6 +795,7 @@ NMC_enriched_data <- msp_fecal.filt10[CE, NMC_ind]
 sum_abund_NMC_enriched <- apply(NMC_enriched_data, 2, sum)
 sum_abund_NMC <- apply(NMC_data, 2, sum)
 
+# compute relative abundance of coherent enriched species in GBA_NMC individuals and sort values
 abund_rel <- sum_abund_NMC_enriched/sum_abund_NMC*100
 abund_rel_rank <- sort(abund_rel)
 
@@ -803,7 +803,7 @@ df_enriched_NMC <- data.frame(abund_rel_rank)
 df_enriched_NMC$prob_prodromalPD <- temp_metadata[match(rownames(df_enriched_NMC), rownames(temp_metadata)), "prob_prodromalPD"] 
 df_enriched_NMC <- df_enriched_NMC %>% mutate(prob_prodromalPD = factor(prob_prodromalPD, levels = c("yes", "no"))) 
 
-# final 
+# Scatterplot  
 median_CE_NMC <- median(x=seq(1:nrow(df_enriched_NMC))) 
 fig_dot_NMC_rank <- ggplot(df_enriched_NMC, aes(x=seq(1:nrow(df_enriched_NMC)), y = abund_rel_rank)) + 
   geom_point(color = "#353868", aes(shape=prob_prodromalPD), size=3) + 
@@ -1162,7 +1162,7 @@ final_df_mod <- final_df_mod[-1,]
 
 Now that the dataframes have been generated, the figure can be produced. Firstly, the names of the clinical variables are changed to make them more meaningful. 
 ```{r}
-name_correspondance <- read.csv("../data/clinical_name_corr.csv", sep = ";")
+name_correspondance <- read.csv("../data/clinical_name_corr.csv", sep = ";") # contains the matching of clinical variable names between code and figure
 ```
 
 ```{r}
@@ -1589,7 +1589,7 @@ load("./data/verified.msp.merged.clasen.PRJEB79944.RData") # MSP abundance matri
 # removed 28 problematic samples 
 verified.metadata.clasen.PRJEB79944 <- verified.metadata.clasen.PRJEB79944 %>% 
     filter(is.na(excluded)) 
-all(verified.metadata.clasen.PRJEB79944$sampleID %in% colnames(verified.msp.merged.clasen.PRJEB79944))
+all(verified.metadata.clasen.PRJEB79944$sampleID %in% colnames(verified.msp.merged.clasen.PRJEB79944)) # checking
 verified.metadata.clasen.PRJEB79944 <- verified.metadata.clasen.PRJEB79944 %>% 
     mutate(group = ifelse(health_status == "H", "HC", "PD"))
 rownames(verified.metadata.clasen.PRJEB79944) <- verified.metadata.clasen.PRJEB79944$sampleID 
@@ -1601,8 +1601,7 @@ dim(verified.metadata.clasen.PRJEB79944)# 106 ind
 table(verified.metadata.clasen.PRJEB79944$group)
 dim(verified.msp.merged.clasen.PRJEB79944) 
 
-
-# 86 individuals selected to make it comparable with the analysis SupTab3 in paper : Microbiome signatures of virulence in the oral-gut-brain axis influence Parkinson’s disease and cognitive decline pathophysiology
+# Among individuals presented in SupTab3 from paper : Microbiome signatures of virulence in the oral-gut-brain axis influence Parkinson’s disease and cognitive decline pathophysiology, we selected 86 individuals (69 PD ; 17 HC) where microbiome profiles passed quality control
 select_ind_tur <- c("ERS24550623","ERS24550783","ERS24550733","ERS24550822","ERS24550677","ERS24550620","ERS24550834","ERS24550716","ERS24550838","ERS24550649","ERS24550635","ERS24550713","ERS24550714","ERS24550656","ERS24550745","ERS24550763","ERS24550660","ERS24550812","ERS24550687","ERS24550786","ERS24550755","ERS24550645","ERS24550781","ERS24550670","ERS24550818","ERS24550712","ERS24550739","ERS24550663","ERS24550810","ERS24550743","ERS24550790","ERS24550720","ERS24550738","ERS24550776","ERS24550762","ERS24550825","ERS24550605","ERS24550764","ERS24550779","ERS24550731","ERS24550841","ERS24550803","ERS24550768","ERS24550629","ERS24550689","ERS24550644","ERS24550646","ERS24550811","ERS24550664","ERS24550766","ERS24550741","ERS24550785","ERS24550816","ERS24550659","ERS24550828","ERS24550626","ERS24550732","ERS24550791","ERS24550792","ERS24550711","ERS24550614","ERS24550752","ERS24550774","ERS24550747","ERS24550616","ERS24550831","ERS24550715","ERS24550665","ERS24550651","ERS24550734","ERS24550770","ERS24550777","ERS24550754","ERS24550612","ERS24550699","ERS24550782","ERS24550718","ERS24550634","ERS24550693","ERS24550685","ERS24550725","ERS24550830","ERS24550681","ERS24550618","ERS24550820","ERS24550666")
 
 
@@ -1610,7 +1609,7 @@ select_ind_tur <- c("ERS24550623","ERS24550783","ERS24550733","ERS24550822","ERS
 all(select_ind_tur %in% verified.metadata.clasen.PRJEB79944$sampleID)
 all(select_ind_tur %in% colnames(verified.msp.merged.clasen.PRJEB79944))
 
-# Select the 86 individuals on metadata 
+# Subtract the metadata for the 86 individuals  
 verified.metadata.clasen.PRJEB79944 <- verified.metadata.clasen.PRJEB79944 %>% filter(sampleID %in% select_ind_tur)
 dim(verified.metadata.clasen.PRJEB79944) # 86 ind 
 table(verified.metadata.clasen.PRJEB79944$group) # 86 ind : 17 HC and 69 PD
@@ -1622,7 +1621,7 @@ all(colnames(verified.msp.merged.clasen.PRJEB79944) == verified.metadata.clasen.
 
 ```{r}
 # Clinical data from Dusko - received in 24/10/25 
-clinic_data_tur <- openxlsx::read.xlsx("./data/Turkish_MSP_and_metadata.xlsx")
+clinic_data_tur <- openxlsx::read.xlsx("./data/Turkish_MSP_and_metadata.xlsx") # contains the clinical data for the 86 individuals of the Turkish cohort 
 index <- which(colnames(clinic_data_tur) == "mgp_sample_alias")
 clinic_data_tur <- clinic_data_tur[, index:ncol(clinic_data_tur)]
 clinic_data_tur <- clinic_data_tur %>% filter(!is.na(mgp_sample_alias))
@@ -1678,7 +1677,8 @@ names(verified.metadata.clasen.PRJEB79944) <- metadata_colnames
 ```{r}
 # Filter MSP abundance with prevalence > 10% 
 # USA cohort
-msp.merged.wallen.filt10 <- msp.merged.wallen.PRJNA834801[rowSums(msp.merged.wallen.PRJNA834801>0)>(ncol(msp.merged.wallen.PRJNA834801)*10/100),] #498 msp left
+msp.merged.wallen.filt10 <- msp.merged.wallen.PRJNA834801[rowSums(msp.merged.wallen.PRJNA834801>0)>(ncol(msp.merged.wallen.PRJNA834801)*10/100),] 
+dim(msp.merged.wallen.filt10) # 498 MSP left
 all(colnames(msp.merged.wallen.PRJNA834801) == metadata.wallen.PRJNA834801$sampleID) # TRUE 
 
 # Korea cohort 
@@ -1846,7 +1846,7 @@ fig_qPD_abund
 
 
 ```{r, fig.show='hide'}
-# BARPLOT ABUNDANCE FC QUARTILE Q1 Q4
+# BARPLOT ABUNDANCE FC QUARTILE Q1 Q4 - PD
 
 # Compute fold change (FC) of mean abundance between Q1 and Q4 for each subtype specie 
 # and create dataframe of FC of mean abundance Q1-Q4 for each subtype specie 
@@ -1877,7 +1877,7 @@ fig_fc_qPD_abund
 
 
 ```{r, fig.width=8, fig.height=6, fig.show='hide'}
-# BARPLOT PROPORTION QUARTILE
+# BARPLOT PROPORTION QUARTILE - PD
 
 # Create a list of vectors containing proportions computed in PD individuals for each subtype 
 PD_prop <- list(
@@ -1912,7 +1912,7 @@ fig_qPD_prop
 
 
 ```{r}
-# PROPORTION FC QUARTILE Q1 Q4 - PD
+# BARPLOT PROPORTION FC QUARTILE Q1 Q4 - PD
 
 # Compute fold change (FC) of mean proportion between Q1 and Q4 for each subtype specie 
 # and create dataframe of FC of mean proportion Q1-Q4 for each subtype specie 
@@ -2128,7 +2128,7 @@ pd_duration_color <- setNames(c(rep(PD_enriched_hue, 2), rep(PD_depleted_hue, 2)
 
 ```{r, fig.width=10}
 # MIX BARPLOT - DOSE EFFECT IN PD (drug naive vs medicated)
-# enriched represented by abundance and depleted represented by proportion
+# enriched represented using abundance and depleted represented using proportion
 select_dose_abund <- tab_pd_dose_abund_melt %>% filter(variable %in% c("CE", "NE"))
 select_dose_prop <- tab_pd_dose_prop_melt %>% filter(variable %in% c("CD","ND"))
 tab_select_dose <- select_dose_abund %>% rbind(select_dose_prop)
@@ -2167,7 +2167,7 @@ bp_dose_mix
 
 ```{r, fig.width=8}
 # MIX BARPLOT - DISEASE DURATION IN PD 
-# enriched represented by abundance and depleted represented by proportion
+# enriched represented using abundance and depleted represented using proportion
 select_duration_abund <- tab_pd_duration_abund_melt %>% filter(variable %in% c("CE", "NE"))
 select_duration_prop <- tab_pd_duration_prop_melt %>% filter(variable %in% c("CD","ND"))
 tab_select_duration <- select_duration_abund %>% rbind(select_duration_prop)
@@ -2307,7 +2307,7 @@ fig_median
 # Extended Figure 5 - HC
 
 ```{r, fig.width=8}
-# BARPLOT ABUNDANCE QUARTILE  
+# BARPLOT ABUNDANCE QUARTILE - HC
 
 # Create a list of vectors containing abundances computed in HC individuals for each subtype 
 HC_abund <- list(
@@ -2478,7 +2478,7 @@ select_clinic_var_bis <- select_clinic_var[!select_clinic_var %in% c("ledd_total
 ## PD 
 # The data used are correlation of species with clinical parameters in PD patients (n = 271).
 
-# extract the clinic parameters and the 176 MSP abundance for 271 PD individuals 
+# extract the clinical parameters and the 176 MSP abundance for 271 PD individuals 
 PD_data <- temp_metadata %>% filter(group_bis == "PD") %>% dplyr::select(all_of(select_clinic_var))
 PD_176abund <- msp_fecal.filt10[c(CE, NE, CD, ND), rownames(PD_data)]
 PD_176abund_t <- as.data.frame(t(PD_176abund))
@@ -2488,7 +2488,7 @@ PD_176abund_t <- as.data.frame(t(PD_176abund))
 # checking
 all(rownames(PD_data) == rownames(PD_176abund_t))
 
-# merge clinic parameters and abundance of the 176 MSP
+# merge clinical parameters and abundance of the 176 MSP
 merged_PD <- cbind(PD_176abund_t, PD_data)
 
 # compute spearman correlation
@@ -2515,7 +2515,7 @@ all(rownames(NMC_176abund_t) == rownames(NMC_data))
 # dim(NMC_176abund_t)
 # dim(NMC_data)
 
-# merge clinical parameters and abundance of the 173 MSP
+# merge clinical parameters and abundance of the 176 MSP
 merged_NMC <- cbind(NMC_176abund_t, NMC_data)
 
 # compute spearman correlations
@@ -2532,7 +2532,7 @@ merge_mat_cor_NMC <- get_corr_and_pval(cor_NMC, NMC_176abund)
 ## HC 
 # The data used are correlation of species with clinical parameters in HC patients (n = 150).  
 
-# extract the clinic parameters and the 176 MSP abundance for 150 HC individuals 
+# extract the clinical parameters and the 176 MSP abundance for 150 HC individuals 
 HC_data <- temp_metadata %>% filter(group_bis == "HC") %>% dplyr::select(all_of(select_clinic_var_bis))
 HC_176abund <- msp_fecal.filt10[c(CE, NE, CD, ND), rownames(HC_data)]
 HC_176abund_t <- as.data.frame(t(HC_176abund))
@@ -2541,7 +2541,7 @@ all(rownames(HC_176abund_t) == rownames(HC_data))
 dim(HC_176abund_t)
 dim(HC_data)
 
-# merge clinic parameters and abundance of the 176 MSP
+# merge clinical parameters and abundance of the 176 MSP
 merged_HC <- cbind(HC_176abund_t, HC_data)
 cor_HC <- rcorr(as.matrix(merged_HC), type = "spearman") 
 mat_cor <- cor_HC$r
@@ -2558,7 +2558,7 @@ merge_mat_cor_HC <- get_corr_and_pval(cor_HC, HC_176abund)
 # CORRELATION PD vs GBA_NMC
 
 # merge correlation matrix of PD and GBA_NMC and 
-# extract significant correlation between clinical and MSP
+# extract significant correlation between clinical variables and MSP
 merged_corr_PD_NMC <- merge(merge_mat_cor_PD, merge_mat_cor_NMC, by = c("msp_id", "variable"))
 merged_corr_PD_NMC <- merged_corr_PD_NMC %>% filter(p_corr.x <0.05 & p_corr.y <0.05)
 
@@ -2618,7 +2618,7 @@ merged_corr_PD_HC %>% filter(same_corr_dir == "yes") %>% pull(msp_id) %>% unique
 
 
 ```{r}
-# regression plot
+# regression plot - HC and PD 
 formula <- y ~ x
 reg_corr_HC_PD <- ggplot(data = merged_corr_PD_HC, aes(x = corr.x, y = corr.y)) + 
   geom_point(aes(color= same_corr_dir), size = 3) + 
@@ -2651,7 +2651,7 @@ pdms16_data <- pdms16_data %>% mutate(cat = ifelse(rownames(pdms16_data) %in% c(
 ```
 
 ```{r}
-# extract the interest MSP abundance in HC and PD
+# extract the abundance of MSPs of interest in HC and PD
 abund_pdms_HC <- msp_fecal.filt10[rownames(pdms16_data), HC_ind]
 abund_pdms_PD <- msp_fecal.filt10[rownames(pdms16_data), PD_ind]
 
@@ -2664,13 +2664,6 @@ HC_count_depleted <- colSums(abund_pdms_HC[rownames(msp_depleted),]>0)
 
 PD_count_enriched <- colSums(abund_pdms_PD[rownames(msp_enriched),]>0)
 PD_count_depleted <- colSums(abund_pdms_PD[rownames(msp_depleted),]>0)
-
-# checking 
-abund_pdms_HC %>% select(ASAPh_268) %>% filter(rownames(abund_pdms_HC) %in% c(CE, NE))
-abund_pdms_HC %>% select(ASAPh_384) %>% filter(rownames(abund_pdms_HC) %in% c(CD, ND))
-
-abund_pdms_PD %>% select(ASAPh_850) %>% filter(rownames(abund_pdms_PD) %in% c(CE, NE))
-abund_pdms_PD %>% select(ASAPh_850) %>% filter(rownames(abund_pdms_PD) %in% c(CD, ND))
 ```
 
 
@@ -2913,7 +2906,7 @@ bp_arranged_HC_PD
 ```
 
 
-# Supplementary Information Figure
+# Supplementary Information Figure - Heatmaps 
 
 ```{r}
 testR_msp.sign_HC_GBA_NMC_ht <- testR_msp.sign_HC_GBA_NMC
