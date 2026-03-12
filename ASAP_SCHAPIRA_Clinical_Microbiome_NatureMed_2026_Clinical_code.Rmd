@@ -1,13 +1,13 @@
 ---
 title: "ASAP Clinical Microbiome: 540 individuals - Nature Medicine 2026"
 output:
-  word_document:
-    toc: true
-    toc_depth: '3'
   html_document:
     toc: true
     toc_depth: 3
     toc_float: true
+  word_document:
+    toc: true
+    toc_depth: '3'
 ---
 
 ```{r setup, include=FALSE}
@@ -41,7 +41,7 @@ library(MASS)
 ```
 
 ```{r}
-#Load metadata file
+#Load clinical data file (available through the UCL Research Data Repository at the link: https://doi.org/10.5522/04/30710741)
 metadata_540ind <- read.csv("/.../ASAP_SCHAPIRA_clinical_dataset_540ind_2026_v2.csv", sep=",", dec = '.', stringsAsFactors = FALSE, header = TRUE)
 
 dim(metadata_540ind)
@@ -151,8 +151,6 @@ table_summ_540ind <- group_by(metadata_540ind, "group"=three_groups) %>%
             )
 
 glimpse(table_summ_540ind)
-
-writexl::write_xlsx(table_summ_540ind, "/Users/elisamenozzi/Library/CloudStorage/OneDrive-Personal/Documents/PhD Literature/Upgrade/ASAP MEATADATA/baseline_cohort/final_documents/metadata_full_cohort/clinical_metadata/00_complete_metadata/Metadata_file_final/table_summ_540ind.xlsx")
 ```
 
 
@@ -369,7 +367,6 @@ updrs_ii_total_compa_nmc_pd = wilcox.test(updrs_ii_total ~ three_groups, data = 
 updrs_ii_total_compa_nmc_pd
 ```
 
-
 ## MDS-UPDRS part III (var3)
 ```{r}
 #stats
@@ -384,10 +381,6 @@ updrs_iii_total_compa_nmc_pd
 ```
 
 ## MDS-UPDRS part IV (not included as not applicable to HC or GBA-NMC)
-```{r}
-mean(onlyPD$updrs_iv_total, na.rm=T)
-sd(onlyPD$updrs_iv_total, na.rm=T)
-```
 
 ## MDS-UPDRS total score (var4)
 ```{r}
@@ -530,7 +523,6 @@ rbdsq_total_compa_nmc_hc
 rbdsq_total_compa_nmc_pd = wilcox.test(rbdsq_total ~ three_groups, data = metadata_nmc_pd)
 rbdsq_total_compa_nmc_pd
 ```
-
 
 ```{r}
 table(metadata_540ind$three_groups, metadata_540ind$rbd_affected_diff)
@@ -693,7 +685,6 @@ moca_compa_nmc_hc_pval = moca_compa_nmc_hc_p[2,]
 moca_compa_nmc_hc_pval
 ```
 
-
 ```{r}
 metadata_nmc_pd = metadata_nmc_pd %>% reorder_levels(three_groups, order = c("GBA_NMC", "PD"))
 metadata_nmc_pd = metadata_nmc_pd %>% reorder_levels(moca_range, order = c("Normal", "Abnormal"))
@@ -709,7 +700,6 @@ moca_compa_nmc_pd_p = as.data.frame(moca_compa_nmc_pd$`Pr(>|z|)`)
 moca_compa_nmc_pd_pval = moca_compa_nmc_pd_p[2,]
 moca_compa_nmc_pd_pval
 ```
-
 
 # HC vs GBA-NMC: Clinical variables: adjustment for multiple comparison
 ```{r}
@@ -748,7 +738,6 @@ print(pvalues_clinical_nmc_hc_ordered)
 fdrs_nmc_hc <-p.adjust(pvalues_clinical_nmc_hc_ordered, method="BH")
 print(fdrs_nmc_hc)
 ```
-
 
 # GBA-NMC vs PD: Clinical variables: adjustment for multiple comparison
 ```{r}
@@ -801,7 +790,6 @@ table(metadata_540ind$three_groups, metadata_540ind$prob_prodromalPD)
 table(onlyPD$group)
 table(onlyPD$cohort, onlyPD$group)
 ```
-
 
 ```{r}
 onlyPD = onlyPD %>% reorder_levels(group, order = c("GBA_PD", "sPD"))
@@ -862,7 +850,6 @@ table_summ_pd <- group_by(onlyPD, "group"=group) %>%
             )
 
 glimpse(table_summ_pd)
-
 ```
 
 # DEMOGRAPHICS
@@ -972,7 +959,6 @@ tapply(onlyPD$bmi, onlyPD$group, FUN = sd, na.rm=T)
 wilcox.test(bmi ~ group, data = onlyPD)
 ```
 
-
 # DISEASE FEATURES
 ## Age at onset
 ```{r}
@@ -990,7 +976,6 @@ sd(onlyPD$pd_dur)
 
 wilcox.test(pd_dur ~ group, data = onlyPD)
 ```
-
 
 ## Levodopa equivalent daily dose
 ```{r}
@@ -1220,7 +1205,6 @@ tapply(onlyPD$rbdsq_total, onlyPD$group, FUN = sd, na.rm=T)
 rbdsq_total_compa_pd = wilcox.test(rbdsq_total ~ group, data = onlyPD)
 rbdsq_total_compa_pd
 ```
-
 
 ```{r}
 table(onlyPD$group, onlyPD$rbd_affected_diff)
