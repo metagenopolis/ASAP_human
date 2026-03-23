@@ -1,4 +1,4 @@
-﻿RESOURCE TYPE,RESOURCE NAME,SOURCE,IDENTIFIER,NEW/REUSE,ADDITIONAL INFORMATION
+RESOURCE TYPE,RESOURCE NAME,SOURCE,IDENTIFIER,NEW/REUSE,ADDITIONAL INFORMATION
 Dataset,GDTB R07-RS207 ,Github,https://github.com/shenwei356/gtdb-taxdump/releases,reuse,
 Dataset,TIGRFAMs,J. Craig Venter Institute (JCVI),https://tigrfams.jcvi.org/cgi-bin/Terms.cgi (RRID:SCR_005493),reuse,
 Dataset,KEGG,Kanehisa Laboratories,https://www.kegg.jp/kegg/download/ (RRID:SCR_001120),reuse,
@@ -16,7 +16,7 @@ Protocol,Faecal sample collection instructions,protocols.io,https://www.protocol
 Software/code,Blast (V.2.17.0),Journal article,https://doi.org/10.1016/S0022-2836(05)80360-2,reuse,
 Software/code,rstatix (V.0.7.2),R package, https://rpkgs.datanovia.com/rstatix/,reuse,
 Software/code,tibble (V.3.2.1),R package,"https://github.com/tidyverse/tibble, https://tibble.tidyverse.org/",reuse,
-Software/code,grid (V.2.3),CRAN,"Murrell, P. R Graphics. Chapman and Hall/CRC, Boca Raton, Florida.  (2005). ",reuse,
+Software/code,grid (V.4.4.1),CRAN,"Murrell, P. R Graphics. Chapman and Hall/CRC, Boca Raton, Florida.  (2005). ",reuse,
 Software/code,patchwork (V.1.2.0),Github,"https://github.com/thomasp85/patchwork, https://patchwork.data-imaginist.com.",reuse,
 Software/code,ComplexHeatmap (V.2.20),Journal article,https://doi.org/10.1002/imt2.43,reuse,
 Software/code,circlize (V.0.4.16),R package,https://doi.org/10.1093/bioinformatics/btu393,reuse,
