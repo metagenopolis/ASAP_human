@@ -177,7 +177,7 @@ show_lm_eq <- function(data, x, y){
     # Compute Spearman correlation 
     rho <- cor(data[,x], data[,y], method = "spearman")
     
-    eq <- substitute(italic(y) == a + b %.% italic(x)*" "~~italic(rho)~"="~r,
+    eq <- substitute(italic(y) == a + b ~ italic(x)*" "~~italic(rho)~"="~r,
                      list(a = format(coef(m)[[1]], digits = 3), 
                           b = format(coef(m)[[2]], digits = 3), 
                           r = format(rho, digits = 2)))

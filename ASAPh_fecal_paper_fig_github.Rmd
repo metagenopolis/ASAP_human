@@ -286,7 +286,7 @@ lm_eq_coh20.sign <- show_lm_eq(HC_vs_PD_NMC_coh20.sign, x = "HC.GBA_NMC_Cliffdel
 
 # regression of cliffdelta HC vs NMC and PD, point in red for significant MSP common for both comparisons
 reg_cliff142 <- reg_plot(HC_vs_PD_NMC_coh142, x = "HC.GBA_NMC_Cliffdelta", y = "HC.PD_Cliffdelta", xlab = "CD - HC vs GBA_NMC", ylab = "CD - HC vs PD", color_var = "common_msp_sign", formula.pos = 0.98) + expand_limits(y = c(-0.3, 0.5)) +
-  geom_text(x = -0.075, y = 0.41, label = lm_eq_coh20.sign, parse = T, size = 7,  color = "red", fontface = "plain") 
+  geom_text(x = -0.12, y = 0.41, label = lm_eq_coh20.sign, parse = T, size = 7,  color = "red", fontface = "plain") 
 reg_cliff142
 ```
 
